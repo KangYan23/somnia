@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const rpcUrl = process.env.RPC_URL;
-const wsUrl = process.env.RPC_WS_URL || 'wss://dream-ws.somnia.network'; // if Somnia has ws
+const wsUrl = process.env.RPC_WS_URL; // if Somnia has ws
 const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) });
 
 const sdk = new SDK({ public: publicClient });

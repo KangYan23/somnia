@@ -1,43 +1,45 @@
 // src/lib/somnia.ts
-// Load environment variables from .env when present so scripts run with ts-node
-// without requiring manual env export in the shell.
 import 'dotenv/config';
 import { SDK } from '@somnia-chain/streams';
 import { createPublicClient, createWalletClient, http, webSocket } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { somniaTestnet } from 'viem/chains';
 
-const rpcUrl = process.env.RPC_URL;
-const rawPrivateKey = process.env.PRIVATE_KEY;
+const RPC_URL = process.env.RPC_URL;
+let RPC_WS_URL = process.env.RPC_WS_URL;
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
-function mask(s?: string) {
-  if (!s) return '<missing>';
-  const show = 6;
-  return s.length <= show * 2 ? s : `${s.slice(0, show)}...${s.slice(-4)}`;
+if (!RPC_URL) throw new Error('RPC_URL is required in .env');
+if (!PRIVATE_KEY) throw new Error('PRIVATE_KEY is required in .env');
+
+// Normalize private key
+const pkClean = PRIVATE_KEY.trim().startsWith('0x') ? PRIVATE_KEY.trim() : `0x${PRIVATE_KEY.trim()}`;
+if (!/^0x[0-9a-fA-F]{64}$/.test(pkClean)) {
+  throw new Error(`Invalid PRIVATE_KEY: ${PRIVATE_KEY}`);
 }
 
-if (!rpcUrl || !rawPrivateKey) {
-  throw new Error(`RPC_URL and PRIVATE_KEY required in env. Got RPC_URL=${rpcUrl ? 'present' : 'missing'}, PRIVATE_KEY=${rawPrivateKey ? 'present' : 'missing'}`);
+const account = privateKeyToAccount(pkClean as `0x${string}`);
+
+// HTTP Clients
+export const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(RPC_URL) });
+export const walletClient = createWalletClient({ chain: somniaTestnet, account, transport: http(RPC_URL) });
+
+// SDK for emitting events / transactions
+export const sdk = new SDK({ public: publicClient, wallet: walletClient });
+
+// Derive WS URL if missing
+if (!RPC_WS_URL) {
+  if (RPC_URL.startsWith('https://')) RPC_WS_URL = RPC_URL.replace('https://', 'wss://');
+  else if (RPC_URL.startsWith('http://')) RPC_WS_URL = RPC_URL.replace('http://', 'ws://');
+  else RPC_WS_URL = 'wss://dream-rpc.somnia.network/ws';
+  console.log(`[Somnia SDK] Derived RPC_WS_URL: ${RPC_WS_URL}`);
 }
 
-// Normalize the private key: accept with or without 0x, strip whitespace
-const pkClean = rawPrivateKey.trim().startsWith('0x') ? rawPrivateKey.trim().slice(2) : rawPrivateKey.trim();
-if (!/^[0-9a-fA-F]{64}$/.test(pkClean)) {
-  throw new Error(`Invalid PRIVATE_KEY in env: expected 32-byte hex (64 hex chars). Received: ${mask(rawPrivateKey)} (hex chars: ${pkClean.length})`);
-}
-const privateKey = (`0x${pkClean}`) as `0x${string}`;
+// WebSocket Client (single reusable client)
+export const publicWsClient = createPublicClient({ chain: somniaTestnet, transport: webSocket(RPC_WS_URL) });
 
-const account = privateKeyToAccount(privateKey);
+// SDK for subscriptions (single reusable wsSdk)
+export const wsSdk = new SDK({ public: publicWsClient });
 
-export const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) });
-export const walletClient = createWalletClient({ chain: somniaTestnet, account, transport: http(rpcUrl) });
-
-export const sdk = new SDK({
-  public: publicClient,
-  wallet: walletClient
-});
-
-// If you want WebSocket subscription later, init a public websocket client similarly (for bot)
-export function createPublicWsClient(wsUrl: string) {
-  return createPublicClient({ chain: somniaTestnet, transport: webSocket(wsUrl) });
-}
+// Export account and env variables for debugging
+export { account, RPC_URL, RPC_WS_URL };

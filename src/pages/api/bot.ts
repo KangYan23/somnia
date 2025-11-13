@@ -6,6 +6,7 @@ import { confirmTransfer } from '../../scripts/confirm-transfer';
 import { sdk, publicClient } from '../../lib/somnia';
 import { parseEther } from 'viem';
 import { randomBytes } from 'crypto';
+import type { ExpectedEventData } from '../../types/events';
 
 /** Wait for a transaction to be mined before sending the next one. */
 async function waitForTransactionReceipt(txHash: `0x${string}`): Promise<void> {
@@ -13,6 +14,41 @@ async function waitForTransactionReceipt(txHash: `0x${string}`): Promise<void> {
     await publicClient.waitForTransactionReceipt({ hash: txHash });
   } catch (err) {
     console.warn('Failed to wait for transaction receipt:', err);
+  }
+}
+
+/**
+ * Verify event was emitted correctly via WebSocket subscription
+ */
+async function verifyEventEmission(
+  eventType: 'TransferIntentCreated' | 'TransferConfirmed',
+  expected: ExpectedEventData
+): Promise<{ verified: boolean; reason?: string }> {
+  try {
+    // Use internal API call - in Next.js API routes, we can call the handler directly
+    // or use localhost for same-server calls
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    
+    const response = await fetch(`${baseUrl}/api/verify-events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventType,
+        expected,
+        timeout: 20000
+      })
+    });
+
+    if (!response.ok) {
+      console.warn(`[${eventType}] Verification request failed:`, response.status);
+      return { verified: false, reason: 'request_failed' };
+    }
+
+    const result = await response.json();
+    return { verified: result.verified, reason: result.reason };
+  } catch (err) {
+    console.error(`[${eventType}] Verification error:`, err);
+    return { verified: false, reason: 'error' };
   }
 }
 
@@ -188,7 +224,16 @@ async function getWalletByPhone(phone: string): Promise<string | null> {
 export async function handleBotMessage(
   message: string,
   senderPhone: string
-): Promise<{ reply: string; eventsEmitted?: boolean; transferData?: any }> {
+): Promise<{ 
+  reply: string; 
+  eventsEmitted?: boolean; 
+  transferData?: any;
+  verificationStatus?: {
+    intentCreated: { verified: boolean; reason?: string } | null;
+    transferConfirmed: { verified: boolean; reason?: string } | null;
+    allVerified: boolean;
+  };
+}> {
   try {
     const parsed = await parseTransferMessage(message);
 
@@ -254,12 +299,35 @@ export async function handleBotMessage(
       token
     };
 
+    // Prepare expected data for verification
+    const expectedIntent: ExpectedEventData = {
+      fromPhoneHash: senderPhoneHash as `0x${string}`,
+      toPhoneHash: recipientPhoneHash as `0x${string}`,
+      fromPhone: senderNormalized,
+      toPhone: recipientNormalized,
+      amount: amountBigInt.toString(),
+      token
+    };
+
+    // Start verification subscription FIRST
+    console.log('🔍 Starting verification subscription for TransferIntentCreated...');
+    const verificationPromise = verifyEventEmission('TransferIntentCreated', expectedIntent);
+
+    // THEN emit the event
+    let intentTxHash: string | null = null;
+    let intentVerificationResult: { verified: boolean; reason?: string } | null = null;
+    
     const intentTx = await createTransferIntent(intent);
     if (typeof intentTx === 'string') {
+      intentTxHash = intentTx;
       console.log('✅ TransferIntentCreated event emitted!');
       console.log('   Event data: from', senderNormalized, 'to', recipientNormalized);
       console.log('   Transaction:', intentTx);
       await waitForTransactionReceipt(intentTx as `0x${string}`);
+      
+      // Wait for verification result
+      intentVerificationResult = await verificationPromise;
+      console.log(`🔍 Verification result: ${intentVerificationResult.verified ? '✅ VERIFIED' : '❌ FAILED'} (${intentVerificationResult.reason || 'unknown'})`);
     } else if (intentTx instanceof Error) {
       throw intentTx;
     } else {
@@ -277,6 +345,26 @@ export async function handleBotMessage(
     // STEP 3: Emit TransferConfirmed Event
     // ==========================================
     console.log('\n🔹 STEP 3: Emitting TransferConfirmed event...');
+
+    // Prepare expected data for verification
+    const expectedConfirm: ExpectedEventData = {
+      fromPhoneHash: senderPhoneHash as `0x${string}`,
+      toPhoneHash: recipientPhoneHash as `0x${string}`,
+      fromPhone: senderNormalized,
+      toPhone: recipientNormalized,
+      amount: amountBigInt.toString(),
+      token,
+      txHash: fakeTxHash as `0x${string}`
+    };
+
+    // Start verification subscription FIRST
+    console.log('🔍 Starting verification subscription for TransferConfirmed...');
+    const confirmVerificationPromise = verifyEventEmission('TransferConfirmed', expectedConfirm);
+
+    // THEN emit the event
+    let confirmTxHash: string | null = null;
+    let confirmVerificationResult: { verified: boolean; reason?: string } | null = null;
+    
     const confirmTx = await confirmTransfer({
       fromPhoneHash: senderPhoneHash as `0x${string}`,
       toPhoneHash: recipientPhoneHash as `0x${string}`,
@@ -287,21 +375,44 @@ export async function handleBotMessage(
       txHash: fakeTxHash as `0x${string}`
     });
     if (typeof confirmTx === 'string') {
+      confirmTxHash = confirmTx;
       console.log('✅ TransferConfirmed event emitted!');
       console.log('   Event data: from', senderNormalized, 'to', recipientNormalized);
       console.log('   Transaction:', confirmTx);
       await waitForTransactionReceipt(confirmTx as `0x${string}`);
+      
+      // Wait for verification result
+      confirmVerificationResult = await confirmVerificationPromise;
+      console.log(`🔍 Verification result: ${confirmVerificationResult.verified ? '✅ VERIFIED' : '❌ FAILED'} (${confirmVerificationResult.reason || 'unknown'})`);
     } else if (confirmTx instanceof Error) {
       throw confirmTx;
     } else {
       throw new Error('Failed to emit TransferConfirmed event');
     }
 
-    console.log('\n🎉 BOTH EVENT STREAMS TESTED SUCCESSFULLY!\n');
+    // Determine overall status
+    const bothEventsEmitted = intentTxHash !== null && confirmTxHash !== null;
+    const bothVerified = intentVerificationResult?.verified === true && confirmVerificationResult?.verified === true;
+
+    // Build status messages
+    const intentStatus = intentVerificationResult?.verified 
+      ? '✅ TransferIntentCreated (VERIFIED)' 
+      : `⚠️ TransferIntentCreated (${intentVerificationResult?.reason || 'NOT VERIFIED'})`;
+    
+    const confirmStatus = confirmVerificationResult?.verified 
+      ? '✅ TransferConfirmed (VERIFIED)' 
+      : `⚠️ TransferConfirmed (${confirmVerificationResult?.reason || 'NOT VERIFIED'})`;
+
+    console.log(`\n${bothVerified ? '🎉' : '⚠️'} EVENT STREAMS ${bothEventsEmitted ? 'EMITTED' : 'FAILED'} - VERIFICATION: ${bothVerified ? 'SUCCESS' : 'FAILED'}\n`);
 
     return {
-      reply: `✅ EVENT STREAMS TESTED!\n\n💸 Amount: ${amount} ${token}\n📱 From: ${senderNormalized}\n📱 To: ${recipientNormalized}\n\n📡 EVENTS EMITTED:\n1. ✅ TransferIntentCreated\n2. ✅ TransferConfirmed\n\n🔗 Simulated TX: ${fakeTxHash.slice(0, 10)}...${fakeTxHash.slice(-8)}`,
-      eventsEmitted: true,
+      reply: `${bothVerified ? '✅' : '⚠️'} EVENT STREAMS ${bothEventsEmitted ? 'EMITTED' : 'FAILED'}!\n\n💸 Amount: ${amount} ${token}\n📱 From: ${senderNormalized}\n📱 To: ${recipientNormalized}\n\n📡 EVENTS:\n1. ${intentStatus}\n2. ${confirmStatus}\n\n🔗 Simulated TX: ${fakeTxHash.slice(0, 10)}...${fakeTxHash.slice(-8)}\n\n${bothVerified ? '✅ Both events verified via WebSocket subscription!' : '⚠️ Verification failed - events emitted but not confirmed via subscription'}`,
+      eventsEmitted: bothEventsEmitted,
+      verificationStatus: {
+        intentCreated: intentVerificationResult,
+        transferConfirmed: confirmVerificationResult,
+        allVerified: bothVerified
+      },
       transferData: {
         from: senderWallet,
         to: recipientWallet,
@@ -310,7 +421,9 @@ export async function handleBotMessage(
         token,
         fromPhone: senderNormalized,
         toPhone: recipientNormalized,
-        txHash: fakeTxHash
+        txHash: fakeTxHash,
+        intentTxHash,
+        confirmTxHash
       }
     };
   } catch (err: any) {
