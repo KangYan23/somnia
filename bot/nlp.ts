@@ -26,7 +26,7 @@ ACTION: transfer
 ACTION: price alert
 {
   "action": "price_alert",
-  "token": <token>,
+  "token": "SOMI",
   "direction": "drop",
   "threshold_percent": <number>
 }
