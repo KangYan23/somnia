@@ -47,7 +47,7 @@ app.post("/webhook", async (req, res) => {
 
   // Ignore read / delivered status
   if (value?.statuses) {
-    console.log("↩️ Ignored: delivery/read status update");
+    console.log("↩ Ignored: delivery/read status update");
     return res.sendStatus(200);
   }
 
@@ -66,7 +66,7 @@ app.post("/webhook", async (req, res) => {
   const aiResponse = await processNLP(text);
 
   // Extract JSON action (if any)
-  const actionMatch = aiResponse.match(/```json([\s\S]*?)```/);
+  const actionMatch = aiResponse.match(/json([\s\S]*?)/);
   let action = null;
 
   if (actionMatch) {
@@ -83,7 +83,7 @@ app.post("/webhook", async (req, res) => {
   // ------------------------------
   const serviceReply = await routeAction(action);
 
-  const finalReply = serviceReply || aiResponse.replace(/```json([\s\S]*?)```/g, "").trim();
+  const finalReply = serviceReply || aiResponse.replace(/json([\s\S]*?)/g, "").trim();
 
   await sendWhatsAppMessage(from, finalReply);
 

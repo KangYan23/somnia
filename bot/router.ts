@@ -1,4 +1,4 @@
-import { handleTransfer } from "./services/transfer/transfer";
+import { handleTransfer } from "../services/transfer/transfer";
 
 export async function routeAction(action: any) {
   if (!action) return null; // No structured action → AI-only message
@@ -8,7 +8,12 @@ export async function routeAction(action: any) {
       return `🔗 Wallet received: ${action.wallet}\n(Feature not implemented yet)`;
 
     case "transfer":
-      return await handleTransfer(action);
+      try {
+        return await handleTransfer(action);
+      } catch (e: any) {
+        console.error('Transfer error:', e?.message || e);
+        return `Transfer failed: ${e?.message || String(e)}`;
+      }
 
     case "price_alert":
       return (

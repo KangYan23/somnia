@@ -19,14 +19,14 @@ ACTION: transfer
 {
   "action": "transfer",
   "amount": <number>,
-  "token": "SOMI",
+  "token": "STT",
   "recipient_phone": "<phone>"
 }
 -------------------------------------------------------
 ACTION: price alert
 {
   "action": "price_alert",
-  "token": "SOMI",
+  "token": <token>,
   "direction": "drop",
   "threshold_percent": <number>
 }
@@ -35,6 +35,7 @@ ACTION: price alert
 Rules:
 - For general questions: NO JSON.
 - For actions: friendly message + JSON in triple backticks.
+- Use token symbol provided by the user; acceptable: SOMI (native) or STT (ERC-20 testnet).
 - Do NOT invent extra fields.
 `;
 
