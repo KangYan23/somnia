@@ -29,9 +29,12 @@ const privateKey = (`0x${pkClean}`) as `0x${string}`;
 
 const account = privateKeyToAccount(privateKey);
 
+export const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) });
+export const walletClient = createWalletClient({ chain: somniaTestnet, account, transport: http(rpcUrl) });
+
 export const sdk = new SDK({
-  public: createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) }),
-  wallet: createWalletClient({ chain: somniaTestnet, account, transport: http(rpcUrl) })
+  public: publicClient,
+  wallet: walletClient
 });
 
 // If you want WebSocket subscription later, init a public websocket client similarly (for bot)

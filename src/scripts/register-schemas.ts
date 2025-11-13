@@ -29,21 +29,24 @@ async function register() {
       params: [
         { name:'fromPhoneHash', paramType:'bytes32', isIndexed: true },
         { name:'toPhoneHash', paramType:'bytes32', isIndexed: true },
-        { name:'to', paramType:'address', isIndexed: false },
+        { name:'fromPhone', paramType:'string', isIndexed: false },
+        { name:'toPhone', paramType:'string', isIndexed: false },
         { name:'amount', paramType:'uint256', isIndexed: false },
         { name:'token', paramType:'string', isIndexed: false }
       ],
-      eventTopic: 'TransferIntentCreated(bytes32 indexed fromPhoneHash, bytes32 indexed toPhoneHash, address to, uint256 amount, string token)'
+      eventTopic: 'TransferIntentCreated(bytes32 indexed fromPhoneHash, bytes32 indexed toPhoneHash, string fromPhone, string toPhone, uint256 amount, string token)'
     },
     {
       params: [
         { name:'fromPhoneHash', paramType:'bytes32', isIndexed: true },
         { name:'toPhoneHash', paramType:'bytes32', isIndexed: true },
+        { name:'fromPhone', paramType:'string', isIndexed: false },
+        { name:'toPhone', paramType:'string', isIndexed: false },
         { name:'amount', paramType:'uint256', isIndexed: false },
         { name:'token', paramType:'string', isIndexed: false },
         { name:'txHash', paramType:'bytes32', isIndexed: false }
       ],
-      eventTopic: 'TransferConfirmed(bytes32 indexed fromPhoneHash, bytes32 indexed toPhoneHash, uint256 amount, string token, bytes32 txHash)'
+      eventTopic: 'TransferConfirmed(bytes32 indexed fromPhoneHash, bytes32 indexed toPhoneHash, string fromPhone, string toPhone, uint256 amount, string token, bytes32 txHash)'
     },
     {
       params: [
