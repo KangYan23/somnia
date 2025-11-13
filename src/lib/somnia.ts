@@ -27,15 +27,11 @@ if (!/^[0-9a-fA-F]{64}$/.test(pkClean)) {
 }
 const privateKey = (`0x${pkClean}`) as `0x${string}`;
 
-const account = privateKeyToAccount(privateKey);
+export const account = privateKeyToAccount(privateKey);
 
 const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) });
-const walletClient = createWalletClient({ chain: somniaTestnet, account, transport: http(rpcUrl) });
+export const walletClient = createWalletClient({ chain: somniaTestnet, account, transport: http(rpcUrl) });
 
-const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) });
-const walletClient = createWalletClient({ chain: somniaTestnet, account, transport: http(rpcUrl) });
-
-const walletClient = createWalletClient({ chain: somniaTestnet, account, transport: http(rpcUrl) });
 export const sdk = new SDK({
   public: createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) }),
   wallet: createWalletClient({ chain: somniaTestnet, account, transport: http(rpcUrl) })

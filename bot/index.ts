@@ -69,7 +69,6 @@ app.post("/webhook", async (req, res) => {
 
   // Extract JSON action (if any)
   const actionMatch = aiResponse.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
-  const actionMatch = aiResponse.match(/json([\s\S]*?)/);
   let action = null;
 
   if (actionMatch) {
