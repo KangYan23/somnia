@@ -1,4 +1,4 @@
-import { handleTransfer } from "./services/transfer/transfer";
+import { handleTransfer } from "../services/transfer/transfer";
 
 export async function routeAction(action: any) {
   if (!action) return null; // No structured action → AI-only message

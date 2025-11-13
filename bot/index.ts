@@ -63,10 +63,12 @@ app.post("/webhook", async (req, res) => {
   // ------------------------------
   // 3. NLP PROCESSING
   // ------------------------------
+  console.log("🤖 Starting NLP processing...");
   const aiResponse = await processNLP(text);
+  console.log("🤖 NLP Response:", aiResponse);
 
   // Extract JSON action (if any)
-  const actionMatch = aiResponse.match(/```json([\s\S]*?)```/);
+  const actionMatch = aiResponse.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
   let action = null;
 
   if (actionMatch) {
@@ -76,14 +78,25 @@ app.post("/webhook", async (req, res) => {
     } catch (e) {
       console.error("❌ Failed to parse JSON action:", e);
     }
+  } else {
+    console.log("ℹ️ No JSON action found in response");
   }
 
   // ------------------------------
   // 4. Route action to service (NO ACTUAL ACTION IMPLEMENTED)
   // ------------------------------
-  const serviceReply = await routeAction(action);
+  console.log("🚀 Routing action:", action);
+  let serviceReply;
+  try {
+    serviceReply = await routeAction(action);
+    console.log("🚀 Service reply:", serviceReply);
+  } catch (error) {
+    console.error("❌ Action execution failed:", error);
+    serviceReply = `❌ Transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+  }
 
-  const finalReply = serviceReply || aiResponse.replace(/```json([\s\S]*?)```/g, "").trim();
+  const finalReply = serviceReply || aiResponse.replace(/```(?:json)?\s*{[\s\S]*?}\s*```/g, "").trim();
+  console.log("📤 Final reply to user:", finalReply);
 
   await sendWhatsAppMessage(from, finalReply);
 

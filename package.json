@@ -18,7 +18,7 @@
     "react-dom": "^19.2.0",
     "ts-node": "^10.9.2",
     "viem": "^2.37.13",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
     "axios": "^1.13.2",
     "body-parser": "^2.2.0",
     "dotenv": "^17.2.3",
@@ -39,7 +39,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.2",
     "tailwindcss": "^4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
