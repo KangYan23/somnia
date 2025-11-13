@@ -1,7 +1,6 @@
 // bot/subscriber.js
 import { SDK } from '@somnia-chain/streams';
-import { createPublicClient, http, webSocket } from 'viem';
-import { somniaTestnet } from 'viem/chains';
+import { publicClient } from '../src/lib/somnia';
 import WebSocket from 'ws'; // ensure install if needed
 import { ethers } from 'ethers';
 import dotenv from 'dotenv';
@@ -9,9 +8,8 @@ dotenv.config();
 
 const rpcUrl = process.env.RPC_URL;
 const wsUrl = process.env.RPC_WS_URL || 'wss://dream-ws.somnia.network'; // if Somnia has ws
-const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) });
 
-const sdk = new SDK({ public: publicClient });
+const sdk = new SDK({ public: publicClient as any });
 
 async function start() {
   console.log('Subscribing to UserRegistrationBroadcast...');

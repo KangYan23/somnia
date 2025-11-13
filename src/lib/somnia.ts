@@ -36,7 +36,7 @@ export const sdk = new SDK({
   public: publicClient as any,
   wallet: walletClient as any
 });
-export { walletClient, account };
+export { walletClient, account, publicClient };
 
 // If you want WebSocket subscription later, init a public websocket client similarly (for bot)
 export function createPublicWsClient(wsUrl: string) {

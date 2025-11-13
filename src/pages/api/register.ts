@@ -58,27 +58,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const abiCoder = new AbiCoder();
     const eventData = abiCoder.encode(['address', 'uint64'], [walletAddress, BigInt(ts)]) as `0x${string}`;
 
-    // Emit Data + Event atomically
+    // Set Data only (ignoring events for now)
     console.log('Prepared payload:', {
       dataId,
       schemaId,
-      dataHexLength: (dataHex || '').length,
-      argumentTopics,
-      eventDataLength: eventData.length
+      dataHexLength: (dataHex || '').length
     });
 
-    const tx = await sdk.streams.setAndEmitEvents(
-      [
-        { id: dataId as `0x${string}`, schemaId, data: dataHex }
-      ],
-      [
-        {
-          id: 'UserRegistrationBroadcast',
-          argumentTopics: argumentTopics as any,
-          data: eventData
-        }
-      ]
-    );
+    const tx = await sdk.streams.set([
+      { id: dataId as `0x${string}`, schemaId, data: dataHex }
+    ]);
 
     return res.json({ ok: true, tx });
   } catch (err: any) {

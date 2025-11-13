@@ -3,7 +3,7 @@
 import { normalizePhone, hashPhone } from "../../src/lib/phone";
 import { sdk, walletClient, account } from "../../src/lib/somnia";
 import { AbiCoder } from "ethers";
-import { parseEther, parseUnits, encodeFunctionData } from "viem";
+import { parseEther } from "viem";
 
 export async function handleTransfer(action: {
   amount: number;
@@ -34,44 +34,105 @@ export async function handleTransfer(action: {
   console.log("Transfer: normalized phone=", normalized, " phoneHash=", phoneHash);
   console.log("DEBUG: Querying with phoneHash:", phoneHash);
 
-  const publisherAddress = (process.env.PUBLISHER_ADDRESS || process.env.WALLET_ADDRESS) as `0x${string}` | undefined;
-  if (!publisherAddress) {
-    throw new Error("PUBLISHER_ADDRESS or WALLET_ADDRESS env is required to query streams");
-  }
-
-  console.log("DEBUG: Publisher address used:", publisherAddress);
-  console.log("DEBUG: Schema ID:", schemaId);
-
-  // CRITICAL BUG: SDK getByKey is completely broken and ignores parameters
-  // It always returns the same wrong record regardless of the phoneHash query
-  // WORKAROUND: We know from website that phone 01110851129 maps to specific wallet
-  console.log("🚨 USING WORKAROUND: SDK getByKey is broken!");
-  
-  // Hardcode the known working registrations as a temporary fix
-  const knownRegistrations: { [phoneHash: string]: string } = {
-    // Phone: 01110851129 -> Wallet: 0xccB221026F719a229B5fC50853A84823725518c5
-    '0xeceb6f44e0a6396aa50de30994b95aba3616fa4835cc6ea022bdd7f08e564de0': '0xccB221026F719a229B5fC50853A84823725518c5',
-    // Phone: 0177163313 -> Wallet: 0x7Dd088Dc87F6A9c709Fd366222169580fbCF95Ec  
-    '0xaaa5f4f92ccb31fb8bc50e43ae3288f62c8bff3b623b914a78df294602f86b59': '0x7Dd088Dc87F6A9c709Fd366222169580fbCF95Ec'
-  };
-
+  // Query the data stream for phone registration
   let recipientWallet: string | undefined;
   
-  // Check our hardcoded mapping first
-  if (knownRegistrations[phoneHash]) {
-    recipientWallet = knownRegistrations[phoneHash];
-    console.log("✅ Found phone registration in hardcoded mapping");
-    console.log("✅ Phone:", normalized);
-    console.log("✅ Wallet:", recipientWallet);
-  } else {
-    // Fallback: Try the broken SDK method anyway
-    console.log("📞 Phone not in hardcoded mapping, trying SDK (will probably fail)...");
-    throw new Error(`Phone number ${normalized} is not registered. Please add it to the known registrations mapping.`);
+  try {
+    console.log("📞 Querying data stream for phone registration...");
+    
+    // Try multiple potential publisher addresses since the SDK may have publisher-specific data
+    const potentialPublishers = [
+      process.env.PUBLISHER_ADDRESS,
+      process.env.WALLET_ADDRESS,
+      process.env.PUBLISHER_ADDRESS?.toLowerCase(),
+      process.env.WALLET_ADDRESS?.toLowerCase(),
+      // Add the wallet that was used in frontend registrations
+      '0xccB221026F719a229B5fC50853A84823725518c5',
+      '0xccb221026f719a229b5fc50853a84823725518c5'
+    ].filter(Boolean).filter((addr, idx, arr) => arr.indexOf(addr) === idx);
+
+    for (const publisher of potentialPublishers) {
+      console.log(`🔍 Trying publisher: ${publisher}`);
+      
+      try {
+        const results = await sdk.streams.getByKey(
+          schemaId as `0x${string}`,
+          publisher as `0x${string}`,
+          phoneHash as `0x${string}`
+        );
+
+        console.log(`DEBUG: Results from publisher ${publisher}:`, results?.length || 0, "records");
+        
+        if (results && results.length > 0) {
+          // Handle both decoded and raw data formats
+          const firstResult = results[0];
+          
+          if (Array.isArray(firstResult)) {
+            // Decoded format: array of field objects
+            const returnedPhoneHash = firstResult[0]?.value?.value;
+            const returnedWallet = firstResult[1]?.value?.value;
+            
+            console.log(`DEBUG: Publisher ${publisher} phoneHash check:`);
+            console.log(`  Expected: ${phoneHash}`);
+            console.log(`  Returned: ${returnedPhoneHash}`);
+            console.log(`  Match: ${phoneHash === returnedPhoneHash}`);
+            
+            if (phoneHash === returnedPhoneHash && returnedWallet && typeof returnedWallet === 'string') {
+              recipientWallet = returnedWallet as string;
+              console.log(`✅ Found correct registration with publisher: ${publisher}`);
+              console.log(`✅ Wallet: ${recipientWallet}`);
+              break;
+            } else if (returnedPhoneHash !== phoneHash) {
+              console.log(`❌ Publisher ${publisher} has different phone data`);
+            }
+          } else if (typeof firstResult === "string") {
+            // Raw hex format: needs ABI decoding
+            console.log(`DEBUG: Decoding raw hex data from publisher ${publisher}`);
+            try {
+              const abiCoder = new AbiCoder();
+              const decoded = abiCoder.decode(
+                ["bytes32", "address", "string", "uint64"],
+                firstResult
+              );
+              
+              const decodedPhoneHash = decoded[0] as string;
+              const decodedWallet = decoded[1] as string;
+              
+              console.log(`DEBUG: Decoded phoneHash: ${decodedPhoneHash}`);
+              console.log(`DEBUG: Expected phoneHash: ${phoneHash}`);
+              console.log(`DEBUG: Match: ${phoneHash === decodedPhoneHash}`);
+              
+              if (phoneHash === decodedPhoneHash && decodedWallet) {
+                recipientWallet = decodedWallet;
+                console.log(`✅ Found correct registration (decoded) with publisher: ${publisher}`);
+                console.log(`✅ Wallet: ${recipientWallet}`);
+                break;
+              }
+            } catch (decodeError: any) {
+              console.log(`❌ Failed to decode data from publisher ${publisher}:`, decodeError.message);
+            }
+          }
+        } else {
+          console.log(`❌ No data from publisher ${publisher}`);
+        }
+      } catch (queryError: any) {
+        console.log(`❌ Query failed for publisher ${publisher}:`, queryError.message);
+      }
+    }
+
+    if (!recipientWallet) {
+      throw new Error(
+        `Phone number ${normalized} is not registered in the data stream. ` +
+        `Tried publishers: ${potentialPublishers.join(', ')}. ` +
+        `Please register the phone number first.`
+      );
+    }
+
+  } catch (error: any) {
+    console.error("Data stream query failed:", error.message);
+    throw new Error(`Failed to query phone registration: ${error.message}`);
   }
 
-  if (!recipientWallet) {
-    throw new Error("Failed to resolve recipient wallet address from streams data");
-  }
   console.log("Transfer: resolved recipient wallet=", recipientWallet);
   
   // Check if recipient wallet is same as sender wallet 
@@ -88,6 +149,7 @@ export async function handleTransfer(action: {
   let txHash: `0x${string}`;
   let eventAmountWei: bigint;
   const upper = token.toUpperCase();
+  
   if (upper === "SOMI" || upper === "STT") {
     // Both SOMI and STT are native currency transfers on Somnia
     // STT is the actual native token symbol on Somnia testnet
