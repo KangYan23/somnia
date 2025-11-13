@@ -4,46 +4,67 @@ import { sdk } from '../../lib/somnia';
 import { normalizePhone, hashPhone } from '../../lib/phone';
 import { AbiCoder, hexlify, randomBytes } from 'ethers';
 
-function abiEncodeUserRegistration(phoneHash: string, wallet: string, metainfo: string, ts: number) {
-  // use ethers AbiCoder to encode the tuple in the same order as schema
+function abiEncodeUserRegistration(phoneHash: string, wallet: string, metainfo: string, ts: number, minLoss: number, maxProfit: number, tokenSymbol: string) {
+  // use ethers AbiCoder to encode the tuple with thresholds included
   const abiCoder = new AbiCoder();
-  // types: bytes32, address, string, uint64
-  return abiCoder.encode(['bytes32','address','string','uint64'], [phoneHash, wallet, metainfo, BigInt(ts)]);
+  // types: bytes32, address, string, uint64, uint256, uint256, string
+  return abiCoder.encode(
+    ['bytes32','address','string','uint64','uint256','uint256','string'], 
+    [phoneHash, wallet, metainfo, BigInt(ts), BigInt(minLoss), BigInt(maxProfit), tokenSymbol]
+  );
+}
+
+function abiEncodePriceThreshold(phoneHash: string, tokenSymbol: string, minPrice: number, maxPrice: number, ts: number) {
+  // use ethers AbiCoder to encode the tuple: bytes32 phoneHash, string tokenSymbol, uint256 minPrice, uint256 maxPrice, uint64 updatedAt
+  const abiCoder = new AbiCoder();
+  return abiCoder.encode(['bytes32','string','uint256','uint256','uint64'], [phoneHash, tokenSymbol, BigInt(minPrice), BigInt(maxPrice), BigInt(ts)]);
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method' });
   try {
-    const { phone, walletAddress, metainfo } = req.body;
+    const { phone, walletAddress, metainfo, minLossPercentage, maxProfitPercentage, tokenSymbol } = req.body;
     if (!phone || !walletAddress) return res.status(400).json({ error: 'phone & walletAddress required' });
+    if (minLossPercentage === undefined || maxProfitPercentage === undefined) {
+      return res.status(400).json({ error: 'minLossPercentage & maxProfitPercentage required' });
+    }
 
     // normalize & hash
     const normalized = normalizePhone(phone);
     const phoneHash = hashPhone(normalized);
     const ts = Date.now();
 
-    // compute schemaId (optional); you must have registered schema previously
-    const schemaIdRaw = await sdk.streams.idToSchemaId('userRegistration') as `0x${string}` | null;
-    if (!schemaIdRaw) {
-      return res.status(500).json({ error: 'schema not registered. run register-schemas script.' });
+    // Get user registration schema ID only (we'll store thresholds in the user registration itself)
+    const userSchemaIdRaw = await sdk.streams.idToSchemaId('userRegistrationWithThresholds') as `0x${string}` | null;
+    if (!userSchemaIdRaw) {
+      return res.status(500).json({ error: 'userRegistrationWithThresholds schema not registered. run register-schemas script.' });
     }
-    const schemaId = schemaIdRaw as `0x${string}`;
+    const userSchemaId = userSchemaIdRaw as `0x${string}`;
 
-    const dataHex = abiEncodeUserRegistration(phoneHash, walletAddress, metainfo || '', ts) as `0x${string}`;
+    // Create user registration data that includes thresholds
+    const userDataHex = abiEncodeUserRegistration(
+      phoneHash, 
+      walletAddress, 
+      metainfo || '', 
+      ts, 
+      minLossPercentage, 
+      maxProfitPercentage, 
+      tokenSymbol || 'STT'
+    ) as `0x${string}`;
 
-    // DataStream id - unique id for data record; use deterministic or random
-  // Data id must match the expected size (bytes32). Use 32 random bytes.
-  const dataId = hexlify(randomBytes(32)) as `0x${string}`;
+    // Generate single data ID for user registration
+    const userDataId = hexlify(randomBytes(32)) as `0x${string}`;
 
-    // Basic payload validation to surface errors before calling the contract
+    // Basic payload validation
     function isHex32(h: string) {
       return /^0x[0-9a-fA-F]{64}$/.test(h);
     }
 
-    if (!/^0x[0-9a-fA-F]*$/.test(dataHex)) {
+    if (!/^0x[0-9a-fA-F]*$/.test(userDataHex)) {
       return res.status(400).json({ error: 'data is not a hex string' });
     }
-    if (!isHex32(dataId)) return res.status(500).json({ error: 'generated dataId is not 32 bytes' });
+    if (!isHex32(userDataId)) return res.status(500).json({ error: 'generated dataId is not 32 bytes' });
+    if (!isHex32(phoneHash)) return res.status(400).json({ error: 'phoneHash must be 32 bytes (0x + 64 hex chars)' });
     if (!isHex32(phoneHash)) return res.status(400).json({ error: 'phoneHash must be 32 bytes (0x + 64 hex chars)' });
 
     // Event argument topics must be 32-byte hex values for indexed params
@@ -58,18 +79,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const abiCoder = new AbiCoder();
     const eventData = abiCoder.encode(['address', 'uint64'], [walletAddress, BigInt(ts)]) as `0x${string}`;
 
-    // Emit Data + Event atomically
+    // Store user registration with thresholds and emit event
     console.log('Prepared payload:', {
-      dataId,
-      schemaId,
-      dataHexLength: (dataHex || '').length,
+      userDataId,
+      userSchemaId,
+      userDataHexLength: (userDataHex || '').length,
       argumentTopics,
-      eventDataLength: eventData.length
+      eventDataLength: eventData.length,
+      minLossPercentage,
+      maxProfitPercentage,
+      tokenSymbol: tokenSymbol || 'STT'
     });
 
     const tx = await sdk.streams.setAndEmitEvents(
       [
-        { id: dataId as `0x${string}`, schemaId, data: dataHex }
+        { id: userDataId as `0x${string}`, schemaId: userSchemaId, data: userDataHex }
       ],
       [
         {
