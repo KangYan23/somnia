@@ -31,9 +31,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const dataHex = abiEncodeUserRegistration(phoneHash, walletAddress, metainfo || '', ts) as `0x${string}`;
 
-    // DataStream id - unique id for data record; use deterministic or random
-  // Data id must match the expected size (bytes32). Use 32 random bytes.
-  const dataId = hexlify(randomBytes(32)) as `0x${string}`;
+    // Use phoneHash as dataId so we can query by phone hash later
+    const dataId = phoneHash as `0x${string}`;
 
     // Basic payload validation to surface errors before calling the contract
     function isHex32(h: string) {

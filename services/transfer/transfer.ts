@@ -45,10 +45,7 @@ export async function handleTransfer(action: {
       process.env.PUBLISHER_ADDRESS,
       process.env.WALLET_ADDRESS,
       process.env.PUBLISHER_ADDRESS?.toLowerCase(),
-      process.env.WALLET_ADDRESS?.toLowerCase(),
-      // Add the wallet that was used in frontend registrations
-      '0xccB221026F719a229B5fC50853A84823725518c5',
-      '0xccb221026f719a229b5fc50853a84823725518c5'
+      process.env.WALLET_ADDRESS?.toLowerCase()
     ].filter(Boolean).filter((addr, idx, arr) => arr.indexOf(addr) === idx);
 
     for (const publisher of potentialPublishers) {
