@@ -38,6 +38,13 @@ export default function Home() {
   const [phoneQuery, setPhoneQuery] = useState('');
   const [phoneQueryResult, setPhoneQueryResult] = useState<any>(null);
   const [publisherAddress, setPublisherAddress] = useState<string>('');
+  
+  // Price threshold state
+  const [priceThresholdPhone, setPriceThresholdPhone] = useState('');
+  const [tokenSymbol, setTokenSymbol] = useState('STT');
+  const [minPrice, setMinPrice] = useState<number>(100);
+  const [maxPrice, setMaxPrice] = useState<number>(200);
+  const [priceThresholdStatus, setPriceThresholdStatus] = useState('');
 
   async function connectWallet() {
     if (typeof window === 'undefined' || !(window as any).ethereum) {
@@ -111,6 +118,43 @@ export default function Home() {
   }
 
   // New function: Query by phone number directly
+  async function registerPriceThreshold() {
+    if (!priceThresholdPhone) {
+      alert('Enter phone number for price threshold');
+      return;
+    }
+    
+    if (minPrice >= maxPrice) {
+      alert('Min price must be less than max price');
+      return;
+    }
+    
+    setPriceThresholdStatus('Setting price threshold...');
+    
+    try {
+      const res = await fetch('/api/register-price-threshold', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: priceThresholdPhone,
+          tokenSymbol,
+          minPrice,
+          maxPrice
+        })
+      });
+      
+      const result = await res.json();
+      
+      if (result.ok) {
+        setPriceThresholdStatus(`✅ Price threshold set! TX: ${result.tx}`);
+      } else {
+        setPriceThresholdStatus(`❌ Error: ${result.error}`);
+      }
+    } catch (error) {
+      setPriceThresholdStatus(`❌ Failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   async function queryByPhoneNumber() {
     console.log('🔍 Button clicked, starting phone query...');
     
@@ -159,6 +203,29 @@ export default function Home() {
       
       const result = await res.json();
       console.log('📥 API response:', result);
+      
+      // Also query for price thresholds
+      console.log('🔄 Querying price thresholds...');
+      let priceThreshold = null;
+      try {
+        const priceRes = await fetch('/api/query-price-threshold', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: phoneQuery,
+            publisher: envPublisher
+          })
+        });
+        const priceResult = await priceRes.json();
+        if (priceResult.found) {
+          priceThreshold = priceResult;
+          console.log('✅ Found price threshold:', priceThreshold);
+        } else {
+          console.log('❌ No price threshold found');
+        }
+      } catch (priceError) {
+        console.warn('⚠️ Price threshold query failed:', priceError);
+      }
       
       // If found, extract wallet address from the processed results
       if (result.found && result.results && result.results[0]) {
@@ -213,6 +280,7 @@ export default function Home() {
           registeredAt: registeredAtISO,
           metainfo,
           publisher: envPublisher,
+          priceThreshold,
           rawResult: result
         });
       } else {
@@ -299,6 +367,51 @@ export default function Home() {
 
       <hr style={{ margin: '2rem 0' }} />
 
+      <h2>💰 Set Price Threshold</h2>
+      <p>Set minimum and maximum price alerts for a phone number:</p>
+
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 8 }}>
+          <input 
+            value={priceThresholdPhone} 
+            onChange={e => setPriceThresholdPhone(e.target.value)} 
+            placeholder="+60123456789"
+            style={{ marginRight: 8, width: 200 }}
+          />
+          <input 
+            value={tokenSymbol} 
+            onChange={e => setTokenSymbol(e.target.value)} 
+            placeholder="Token Symbol"
+            style={{ marginRight: 8, width: 100 }}
+          />
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ marginRight: 8 }}>Min Price:</label>
+          <input 
+            type="number" 
+            value={minPrice} 
+            onChange={e => setMinPrice(Number(e.target.value))} 
+            style={{ marginRight: 16, width: 100 }}
+          />
+          <label style={{ marginRight: 8 }}>Max Price:</label>
+          <input 
+            type="number" 
+            value={maxPrice} 
+            onChange={e => setMaxPrice(Number(e.target.value))} 
+            style={{ width: 100 }}
+          />
+        </div>
+        <button onClick={registerPriceThreshold}>Set Price Threshold</button>
+      </div>
+
+      {priceThresholdStatus && (
+        <div style={{ marginTop: 12, padding: 12, background: '#f0f8ff', borderRadius: 4 }}>
+          {priceThresholdStatus}
+        </div>
+      )}
+
+      <hr style={{ margin: '2rem 0' }} />
+
       <h2>🔍 Quick Phone Lookup</h2>
       <p>Simply enter a phone number to find the associated wallet address (no wallet connection needed):</p>
 
@@ -344,6 +457,19 @@ export default function Home() {
               {phoneQueryResult.metainfo && (
                 <div style={{ marginBottom: 8 }}>
                   <strong>ℹ️ Info:</strong> {phoneQueryResult.metainfo}
+                </div>
+              )}
+              {phoneQueryResult.priceThreshold && (
+                <div style={{ marginBottom: 8, padding: 8, background: 'rgba(0, 255, 0, 0.1)', border: '1px solid #00aa00', borderRadius: 4 }}>
+                  <strong>💰 Price Threshold:</strong>
+                  <div style={{ fontSize: '0.9em', marginTop: 4 }}>
+                    <div><strong>Token:</strong> {phoneQueryResult.priceThreshold.tokenSymbol || phoneQueryResult.priceThreshold.token || 'Unknown'}</div>
+                    <div><strong>Min Price:</strong> {phoneQueryResult.priceThreshold.minPrice}</div>
+                    <div><strong>Max Price:</strong> {phoneQueryResult.priceThreshold.maxPrice}</div>
+                    {phoneQueryResult.priceThreshold.updatedAt && (
+                      <div><strong>Updated:</strong> {new Date(parseInt(phoneQueryResult.priceThreshold.updatedAt)).toISOString()}</div>
+                    )}
+                  </div>
                 </div>
               )}
               <details style={{ marginTop: 8 }}>
