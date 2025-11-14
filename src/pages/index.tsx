@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { ethers } from 'ethers';
 import WavyBackground from '../components/WavyBackground';
+import HeroSection from '../components/HeroSection';
 
 // Phone utility functions (client-side versions)
 function normalizePhone(raw: string) {
@@ -241,45 +242,14 @@ export default function Home() {
       <WavyBackground />
       <div className="page-content">
         <div className="container">
-          <div className="mt-8 mb-8">
-        <h1 className="text-center mb-6">🚀 WhatsApp Wallet — Register</h1>
-        <p className="text-center text-secondary mb-8">Connect your wallet and enter phone number in E.164 format (e.g. +60123456789)</p>
-
-        <div className="card">
-          <div className="form-group">
-            <button onClick={connectWallet} className="btn-primary">
-              {address ? '✅ Wallet Connected' : '🔗 Connect Wallet'}
-            </button>
-            <div className="mt-2 text-sm">
-              <strong>Connected:</strong> {address ? (
-                <code className="text-primary">{address.slice(0, 6)}...{address.slice(-4)}</code>
-              ) : (
-                <span className="text-muted">none</span>
-              )}
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Phone Number</label>
-            <input 
-              value={phone} 
-              onChange={e => setPhone(e.target.value)} 
-              placeholder="+60123456789"
-              className="w-full"
-            />
-            <div className="form-help">Enter your phone number in international format</div>
-          </div>
-
-          <button onClick={submit} className="btn-primary btn-lg">
-            📝 Register Phone & Wallet
-          </button>
-
-          {status && (
-            <div className={`alert ${status.includes('Error') ? 'alert-error' : 'alert-success'} mt-4`}>
-              {status}
-            </div>
-          )}
-        </div>
+          <HeroSection
+            onConnectWallet={connectWallet}
+            onSubmit={submit}
+            address={address}
+            phone={phone}
+            setPhone={setPhone}
+            status={status}
+          />
 
         <hr />
 
@@ -483,7 +453,6 @@ export default function Home() {
         </div>
       </div>
     </div>
-  </div>
   </>
 );
 }
