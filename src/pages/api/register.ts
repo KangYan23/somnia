@@ -25,9 +25,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { phone, walletAddress, metainfo, minLossPercentage, maxProfitPercentage, tokenSymbol } = req.body;
     if (!phone || !walletAddress) return res.status(400).json({ error: 'phone & walletAddress required' });
-    if (minLossPercentage === undefined || maxProfitPercentage === undefined) {
-      return res.status(400).json({ error: 'minLossPercentage & maxProfitPercentage required' });
-    }
 
     // normalize & hash
     const normalized = normalizePhone(phone);
@@ -47,8 +44,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       walletAddress, 
       metainfo || '', 
       ts, 
-      minLossPercentage, 
-      maxProfitPercentage, 
+      minLossPercentage || 0, 
+      maxProfitPercentage || 100, 
       tokenSymbol || 'STT'
     ) as `0x${string}`;
 
@@ -64,19 +61,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!/^0x[0-9a-fA-F]*$/.test(userDataHex)) {
       return res.status(400).json({ error: 'data is not a hex string' });
     }
-    if (!isHex32(userDataId)) return res.status(500).json({ error: 'generated dataId is not 32 bytes' });
+    if (!isHex32(dataId)) return res.status(500).json({ error: 'generated dataId is not 32 bytes' });
     if (!isHex32(phoneHash)) return res.status(400).json({ error: 'phoneHash must be 32 bytes (0x + 64 hex chars)' });
     if (!isHex32(phoneHash)) return res.status(400).json({ error: 'phoneHash must be 32 bytes (0x + 64 hex chars)' });
 
     // Publish data stream only (no events)
     console.log('Prepared payload:', {
       dataId,
-      schemaId,
-      dataHexLength: (dataHex || '').length
+      schemaId: userSchemaId,
+      dataHexLength: (userDataHex || '').length
     });
 
     const tx = await sdk.streams.set([
-      { id: dataId as `0x${string}`, schemaId, data: dataHex }
+      { id: dataId as `0x${string}`, schemaId: userSchemaId, data: userDataHex }
     ]);
 
     return res.json({ ok: true, tx });
