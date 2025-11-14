@@ -12,24 +12,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const params = req.method === 'GET' ? req.query : req.body;
     const { schemaName, publisher, dataId } = params;
     
-    if (!schemaName || !publisher || !dataId) {
+    if (!schemaName || !publisher) {
       return res.status(400).json({ 
-        error: 'schemaName, publisher, and dataId parameters required',
+        error: 'schemaName and publisher parameters required',
         example: {
           schemaName: 'userRegistration',
           publisher: '0x123...abc',
-          dataId: '0x456...def'
+          dataId: '0x456...def (optional - phone hash to filter by)'
         }
       });
     }
 
-    // Validate hex formats
+    // Validate hex format
     if (!/^0x[0-9a-fA-F]+$/.test(publisher)) {
       return res.status(400).json({ error: 'publisher must be a valid hex address' });
-    }
-    
-    if (!/^0x[0-9a-fA-F]+$/.test(dataId)) {
-      return res.status(400).json({ error: 'dataId must be a valid hex value' });
     }
 
     // Get the schema ID from schema name
@@ -49,20 +45,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       schemaName,
       schemaId,
       publisher,
-      dataId
+      dataId: dataId || 'all records'
     });
 
-    // Query data using getByKey with error handling
+    // Query ALL data from this publisher using getAllPublisherDataForSchema
     let results;
     try {
-      results = await sdk.streams.getByKey(
+      results = await sdk.streams.getAllPublisherDataForSchema(
         schemaId as `0x${string}`, 
-        publisher as `0x${string}`,
-        dataId as `0x${string}`
+        publisher as `0x${string}`
       );
       console.log('Query results:', results);
+      
+      // Deep log to see actual values inside the [Object] entries (handle BigInt)
+      console.log('Query results DEEP:', JSON.stringify(results, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value, 2));
+      
+      // Log each field individually to see the structure
+      if (results && Array.isArray(results) && results.length > 0) {
+        console.log('First result analysis:');
+        const firstResult = results[0];
+        if (Array.isArray(firstResult)) {
+          firstResult.forEach((field, index) => {
+            console.log(`Field ${index}:`, {
+              name: field.name,
+              type: field.type,
+              signature: field.signature,
+              value: field.value,
+              valueType: typeof field.value,
+              valueString: String(field.value)
+            });
+          });
+        }
+      }
     } catch (queryError: any) {
-      console.error('getByKey failed:', queryError);
+      console.error('getAllPublisherDataForSchema failed:', queryError);
       
       // Check if it's the "Array index is out of bounds" error
       if (queryError.reason === 'Array index is out of bounds.' || 
@@ -72,15 +89,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           schemaName,
           schemaId,
           publisher,
-          dataId,
-          message: 'No data found for the given parameters (publisher has no data for this schema/dataId)',
+          message: 'No data found for this publisher under this schema',
           debug: {
-            error: 'Array index out of bounds - likely means no data exists for this publisher/schema/dataId combination',
+            error: 'Array index out of bounds - publisher has no data for this schema',
             suggestions: [
               'Check if you have published any data using /api/register',
               'Verify the publisher address matches the one used to publish data',
-              'Try using the environment publisher address if set: ' + (process.env.PUBLISHER_ADDRESS || process.env.WALLET_ADDRESS || 'not set'),
-              'Use /api/query-registration with a phone number to see if any data exists'
+              'Try using the environment publisher address if set: ' + (process.env.PUBLISHER_ADDRESS || process.env.WALLET_ADDRESS || 'not set')
             ]
           }
         });
@@ -96,25 +111,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         schemaName,
         schemaId,
         publisher,
-        dataId,
-        message: 'No data found for the given parameters'
+        message: 'No data found for this publisher under this schema'
       });
     }
 
-    // Return raw results - let the client handle decoding based on their schema
+    // Process and normalize the results to extract actual values
+    const processedResults = results.map((item: any) => {
+      if (Array.isArray(item)) {
+        // Extract actual values from field objects
+        const normalizedItem: any = {};
+        item.forEach((field: any) => {
+          if (field && field.name && field.value && field.value.value !== undefined) {
+            let value = field.value.value;
+            // Convert BigInt to string for JSON serialization
+            if (typeof value === 'bigint') {
+              value = value.toString();
+            }
+            normalizedItem[field.name] = value;
+          }
+        });
+        return normalizedItem;
+      }
+      return item;
+    });
+
+    // Filter by dataId (phoneHash) if provided
+    let filteredResults = processedResults;
+    if (dataId) {
+      console.log('🔍 Filtering by dataId (phoneHash):', dataId);
+      filteredResults = processedResults.filter((item: any) => {
+        const matches = item.phoneHash === dataId;
+        console.log(`📱 Checking item phoneHash: ${item.phoneHash} === ${dataId} ? ${matches}`);
+        return matches;
+      });
+      console.log(`✅ Filtered results: ${filteredResults.length} out of ${processedResults.length} records`);
+    }
+
+    // Return filtered or all results
     return res.json({
-      found: true,
+      found: filteredResults.length > 0,
       schemaName,
       schemaId,
       publisher,
-      dataId,
-      results: JSON.parse(JSON.stringify(results, (key, value) =>
+      dataId: dataId || null,
+      results: filteredResults,
+      allResults: processedResults, // All results for debugging
+      rawResults: JSON.parse(JSON.stringify(results, (key, value) =>
         typeof value === 'bigint' ? value.toString() : value
       )),
       metadata: {
         resultType: typeof results,
         isArray: Array.isArray(results),
-        count: Array.isArray(results) ? results.length : 1
+        totalCount: Array.isArray(results) ? results.length : 1,
+        filteredCount: filteredResults.length,
+        wasFiltered: !!dataId
       }
     });
 
@@ -122,7 +172,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('Datastream query error:', err);
     return res.status(500).json({ 
       error: err.message || String(err),
-      hint: 'Make sure the schema is registered and the publisher has published data with this dataId'
+      hint: 'Make sure the schema is registered and the publisher has published data'
     });
   }
 }

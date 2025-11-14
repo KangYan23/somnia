@@ -160,36 +160,31 @@ export default function Home() {
       const result = await res.json();
       console.log('📥 API response:', result);
       
-      // If found, extract wallet address from the decoded results
+      // If found, extract wallet address from the processed results
       if (result.found && result.results && result.results[0]) {
         console.log('🔍 Analyzing result structure:', result.results);
         
-        const userData = result.results[0][0]; // First result, first item array
-        console.log('🔍 userData structure:', userData, 'Type:', typeof userData, 'IsArray:', Array.isArray(userData));
+        const userData = result.results[0]; // First result (now normalized)
+        console.log('🔍 userData structure:', userData, 'Type:', typeof userData);
         
         let walletAddress, registeredAt, metainfo;
         
-        // Handle different data structures
-        if (Array.isArray(userData)) {
-          // If userData is an array of schema items
-          console.log('📋 Processing array userData with length:', userData.length);
-          walletAddress = userData.find((item: any) => item.name === 'walletAddress')?.value?.value;
-          registeredAt = userData.find((item: any) => item.name === 'registeredAt')?.value?.value;
-          metainfo = userData.find((item: any) => item.name === 'metainfo')?.value?.value;
+        // The API now returns normalized objects with direct property access
+        if (userData && typeof userData === 'object') {
+          console.log('📦 Processing normalized userData');
+          walletAddress = userData.walletAddress;
+          registeredAt = userData.registeredAt;
+          metainfo = userData.metainfo;
           
-          // Log each item for debugging
-          userData.forEach((item: any, index: number) => {
-            console.log(`  Item ${index}:`, item);
+          console.log('🔍 Extracted normalized values:', {
+            phoneHash: userData.phoneHash,
+            walletAddress,
+            registeredAt,
+            metainfo
           });
-        } else if (userData && typeof userData === 'object') {
-          // If userData is an object with direct properties
-          console.log('📦 Processing object userData');
-          walletAddress = userData.walletAddress || userData.value?.value;
-          registeredAt = userData.registeredAt || userData.value?.value;
-          metainfo = userData.metainfo || userData.value?.value;
         } else {
           console.warn('⚠️ Unexpected userData structure, using raw data:', userData);
-          // Try to use userData directly if it's a simple value
+          // Fallback to string if it's a simple value
           if (typeof userData === 'string') {
             walletAddress = userData;
           }
