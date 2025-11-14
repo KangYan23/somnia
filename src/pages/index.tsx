@@ -463,7 +463,7 @@ export default function Home() {
                 <div style={{ marginBottom: 8, padding: 8, background: 'rgba(0, 255, 0, 0.1)', border: '1px solid #00aa00', borderRadius: 4 }}>
                   <strong>💰 Price Threshold:</strong>
                   <div style={{ fontSize: '0.9em', marginTop: 4 }}>
-                    <div><strong>Token:</strong> {phoneQueryResult.priceThreshold.tokenSymbol || phoneQueryResult.priceThreshold.token || 'Unknown'}</div>
+                    <div><strong>Token:</strong> {phoneQueryResult.priceThreshold.tokenSymbol || 'STT'}</div>
                     <div><strong>Min Price:</strong> {phoneQueryResult.priceThreshold.minPrice}</div>
                     <div><strong>Max Price:</strong> {phoneQueryResult.priceThreshold.maxPrice}</div>
                     {phoneQueryResult.priceThreshold.updatedAt && (

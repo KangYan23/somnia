@@ -76,9 +76,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.json({ found: false, message: 'No priceThreshold found for this phone' });
     }
 
+    console.log('🎯 Final result:', {
+      found: true,
+      phone,
+      tokenSymbol: match.tokenSymbol,
+      minPrice: match.minPrice,
+      maxPrice: match.maxPrice,
+      updatedAt: match.updatedAt
+    });
+
     return res.json({
       found: true,
       phone,
+      tokenSymbol: match.tokenSymbol,
       minPrice: match.minPrice,
       maxPrice: match.maxPrice,
       updatedAt: match.updatedAt
