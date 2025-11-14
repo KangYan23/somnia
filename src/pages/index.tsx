@@ -1,6 +1,7 @@
 // src/pages/index.tsx
 import { useState } from 'react';
 import { ethers } from 'ethers';
+import WavyBackground from '../components/WavyBackground';
 
 // Phone utility functions (client-side versions)
 function normalizePhone(raw: string) {
@@ -236,204 +237,253 @@ export default function Home() {
   }
 
   return (
-    <div style={{ maxWidth: 680, margin: '2rem auto', fontFamily: 'system-ui, sans-serif' }}>
-      <h1>WhatsApp Wallet — Register</h1>
-      <p>Connect your wallet and enter phone number in E.164 (e.g. +60123456789)</p>
+    <>
+      <WavyBackground />
+      <div className="page-content">
+        <div className="container">
+          <div className="mt-8 mb-8">
+        <h1 className="text-center mb-6">🚀 WhatsApp Wallet — Register</h1>
+        <p className="text-center text-secondary mb-8">Connect your wallet and enter phone number in E.164 format (e.g. +60123456789)</p>
 
-      <div style={{ marginBottom: 12 }}>
-        <button onClick={connectWallet}>Connect Wallet</button>
-        <div style={{ marginTop: 8 }}>Connected: {address || 'none'}</div>
-      </div>
+        <div className="card">
+          <div className="form-group">
+            <button onClick={connectWallet} className="btn-primary">
+              {address ? '✅ Wallet Connected' : '🔗 Connect Wallet'}
+            </button>
+            <div className="mt-2 text-sm">
+              <strong>Connected:</strong> {address ? (
+                <code className="text-primary">{address.slice(0, 6)}...{address.slice(-4)}</code>
+              ) : (
+                <span className="text-muted">none</span>
+              )}
+            </div>
+          </div>
 
-      <div style={{ marginBottom: 12 }}>
-        <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+60123456789" />
-      </div>
+          <div className="form-group">
+            <label className="form-label">Phone Number</label>
+            <input 
+              value={phone} 
+              onChange={e => setPhone(e.target.value)} 
+              placeholder="+60123456789"
+              className="w-full"
+            />
+            <div className="form-help">Enter your phone number in international format</div>
+          </div>
 
-      <div>
-        <button onClick={submit}>Register</button>
-      </div>
+          <button onClick={submit} className="btn-primary btn-lg">
+            📝 Register Phone & Wallet
+          </button>
 
-      <div style={{ marginTop: 12 }}>{status}</div>
-
-      <hr style={{ margin: '2rem 0' }} />
-
-      <h2>Query Registration</h2>
-      <p>Enter a phone number to check if it's registered and see the wallet address:</p>
-
-      <div style={{ marginBottom: 12 }}>
-        <input 
-          value={queryPhone} 
-          onChange={e => setQueryPhone(e.target.value)} 
-          placeholder="+60123456789"
-          style={{ marginRight: 8 }}
-        />
-        <button onClick={queryRegistration}>Query</button>
-      </div>
-
-      {queryResult && !queryResult.loading && (
-        <div style={{ marginTop: 12, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
-          {queryResult.error && (
-            <div style={{ color: 'red' }}>Error: {queryResult.error}</div>
+          {status && (
+            <div className={`alert ${status.includes('Error') ? 'alert-error' : 'alert-success'} mt-4`}>
+              {status}
+            </div>
           )}
-          {!queryResult.error && !queryResult.found && (
-            <div>No registration found for {queryResult.phone}</div>
+        </div>
+
+        <hr />
+
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title mb-0">🔍 Query Registration</h2>
+            <p className="text-secondary">Enter a phone number to check if it's registered and see the wallet address</p>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Phone Number</label>
+            <div className="flex gap-2">
+              <input 
+                value={queryPhone} 
+                onChange={e => setQueryPhone(e.target.value)} 
+                placeholder="+60123456789"
+                className="flex-1"
+              />
+              <button onClick={queryRegistration} className="btn-secondary">
+                🔍 Query
+              </button>
+            </div>
+          </div>
+
+          {queryResult && !queryResult.loading && (
+            <div className="mt-4">
+              {queryResult.error && (
+                <div className="alert alert-error">Error: {queryResult.error}</div>
+              )}
+              {!queryResult.error && !queryResult.found && (
+                <div className="alert alert-warning">No registration found for {queryResult.phone}</div>
+              )}
+              {queryResult.found && queryResult.registrations && (
+                <div className="alert alert-success">
+                  <h3 className="mb-4">Found {queryResult.count} registration(s) for {queryResult.phone}</h3>
+                  {queryResult.registrations.map((reg: any, idx: number) => (
+                    <div key={idx} className="card mt-4">
+                      <div className="mb-2"><strong>Wallet Address:</strong> <code>{reg.walletAddress}</code></div>
+                      <div className="mb-2"><strong>Registered At:</strong> {reg.registeredAtISO}</div>
+                      {reg.metainfo && <div className="mb-2"><strong>Metainfo:</strong> {reg.metainfo}</div>}
+                      <details className="mt-4">
+                        <summary className="text-sm text-muted">Technical Details</summary>
+                        <div className="text-xs text-muted mt-2">
+                          <div>Phone Hash: {reg.phoneHash}</div>
+                          <div>Record ID: {reg.id}</div>
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
-          {queryResult.found && queryResult.registrations && (
-            <div>
-              <h3>Found {queryResult.count} registration(s) for {queryResult.phone}</h3>
-              {queryResult.registrations.map((reg: any, idx: number) => (
-                <div key={idx} style={{ marginTop: 12, padding: 8, background: 'white', borderRadius: 4 }}>
-                  <div><strong>Wallet Address:</strong> {reg.walletAddress}</div>
-                  <div><strong>Registered At:</strong> {reg.registeredAtISO}</div>
-                  {reg.metainfo && <div><strong>Metainfo:</strong> {reg.metainfo}</div>}
-                  <div style={{ fontSize: '0.85em', color: '#666', marginTop: 4 }}>
-                    <div>Phone Hash: {reg.phoneHash}</div>
-                    <div>Record ID: {reg.id}</div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title mb-0">⚡ Quick Phone Lookup</h2>
+            <p className="text-secondary">Simply enter a phone number to find the associated wallet address (no wallet connection needed)</p>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Phone Number</label>
+            <div className="flex gap-2">
+              <input 
+                value={phoneQuery} 
+                onChange={e => setPhoneQuery(e.target.value)} 
+                placeholder="+60123456789"
+                className="flex-1"
+              />
+              <button onClick={queryByPhoneNumber} className="btn-primary">
+                🔍 Find Wallet
+              </button>
+            </div>
+          </div>
+
+          {phoneQueryResult && !phoneQueryResult.loading && (
+            <div className="mt-4">
+              {phoneQueryResult.error && (
+                <div className="alert alert-error">Error: {phoneQueryResult.error}</div>
+              )}
+              {!phoneQueryResult.error && !phoneQueryResult.found && (
+                <div className="alert alert-warning">
+                  <div>❌ No wallet found for {phoneQueryResult.phone}</div>
+                  <div className="text-sm text-muted mt-2">
+                    Phone Hash: <code>{phoneQueryResult.phoneHash}</code>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <hr style={{ margin: '2rem 0' }} />
-
-      <h2>🔍 Quick Phone Lookup</h2>
-      <p>Simply enter a phone number to find the associated wallet address (no wallet connection needed):</p>
-
-      <div style={{ marginBottom: 12 }}>
-        <input 
-          value={phoneQuery} 
-          onChange={e => setPhoneQuery(e.target.value)} 
-          placeholder="+60123456789"
-          style={{ marginRight: 8, width: 200 }}
-        />
-        <button onClick={queryByPhoneNumber}>Find Wallet Address</button>
-      </div>
-
-      {phoneQueryResult && !phoneQueryResult.loading && (
-        <div style={{ marginTop: 12, padding: 12, background: '#e8f5e8', borderRadius: 4 }}>
-          {phoneQueryResult.error && (
-            <div style={{ color: 'red' }}>Error: {phoneQueryResult.error}</div>
-          )}
-          {!phoneQueryResult.error && !phoneQueryResult.found && (
-            <div>
-              <div style={{ color: '#666' }}>❌ No wallet found for {phoneQueryResult.phone}</div>
-              <div style={{ fontSize: '0.85em', color: '#888', marginTop: 4 }}>
-                Phone Hash: {phoneQueryResult.phoneHash}
-              </div>
-            </div>
-          )}
-          {phoneQueryResult.found && (
-            <div>
-              <div style={{ marginBottom: 8 }}>
-                <strong>✅ Phone:</strong> {phoneQueryResult.phone}
-              </div>
-              <div style={{ marginBottom: 8 }}>
-                <strong>💰 Wallet Address:</strong> 
-                <code style={{ background: 'white', padding: '2px 6px', margin: '0 4px', borderRadius: 2 }}>
-                  {phoneQueryResult.walletAddress}
-                </code>
-              </div>
-              {phoneQueryResult.registeredAt && (
-                <div style={{ marginBottom: 8 }}>
-                  <strong>📅 Registered:</strong> {phoneQueryResult.registeredAt}
+              )}
+              {phoneQueryResult.found && (
+                <div className="alert alert-success">
+                  <div className="mb-3">
+                    <strong>✅ Phone:</strong> {phoneQueryResult.phone}
+                  </div>
+                  <div className="mb-3">
+                    <strong>💰 Wallet Address:</strong>
+                    <br />
+                    <code className="text-primary text-sm">{phoneQueryResult.walletAddress}</code>
+                  </div>
+                  {phoneQueryResult.registeredAt && (
+                    <div className="mb-3">
+                      <strong>📅 Registered:</strong> {phoneQueryResult.registeredAt}
+                    </div>
+                  )}
+                  {phoneQueryResult.metainfo && (
+                    <div className="mb-3">
+                      <strong>ℹ️ Info:</strong> {phoneQueryResult.metainfo}
+                    </div>
+                  )}
+                  <details className="mt-4">
+                    <summary className="text-sm text-muted">Technical Details</summary>
+                    <div className="text-xs text-muted mt-2">
+                      <div>Phone Hash: <code>{phoneQueryResult.phoneHash}</code></div>
+                    </div>
+                  </details>
                 </div>
               )}
-              {phoneQueryResult.metainfo && (
-                <div style={{ marginBottom: 8 }}>
-                  <strong>ℹ️ Info:</strong> {phoneQueryResult.metainfo}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title mb-0">🛠️ Query Datastream</h2>
+            <p className="text-secondary">Advanced: Query data directly from the datastream using schema name, publisher address, and data ID</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 mb-4">
+            <div className="form-group">
+              <label className="form-label">Schema Name</label>
+              <input 
+                value={datastreamQuery.schemaName}
+                onChange={e => setDatastreamQuery({...datastreamQuery, schemaName: e.target.value})}
+                placeholder="userRegistration"
+              />
+            </div>
+            
+            <div className="form-group">
+              <label className="form-label">Publisher Address</label>
+              <input 
+                value={datastreamQuery.publisher}
+                onChange={e => setDatastreamQuery({...datastreamQuery, publisher: e.target.value})}
+                placeholder="0x123...abc"
+              />
+            </div>
+            
+            <div className="form-group">
+              <label className="form-label">Data ID (Phone Hash)</label>
+              <input 
+                value={datastreamQuery.dataId}
+                onChange={e => setDatastreamQuery({...datastreamQuery, dataId: e.target.value})}
+                placeholder="0x456...def"
+              />
+            </div>
+          </div>
+          
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={queryDatastream} className="btn-primary">
+              🔍 Query Datastream
+            </button>
+            <button onClick={queryDatastreamByPhone} className="btn-secondary">
+              📱 Auto-fill from Phone
+            </button>
+          </div>
+
+          {datastreamResult && !datastreamResult.loading && (
+            <div className="mt-4">
+              {datastreamResult.error && (
+                <div className="alert alert-error">Error: {datastreamResult.error}</div>
+              )}
+              {!datastreamResult.error && !datastreamResult.found && (
+                <div className="alert alert-warning">No data found for the given parameters</div>
+              )}
+              {datastreamResult.found && (
+                <div className="alert alert-info">
+                  <h3 className="mb-4">Datastream Results</h3>
+                  <div className="mb-2">
+                    <strong>Schema:</strong> {datastreamResult.schemaName} ({datastreamResult.schemaId})
+                  </div>
+                  <div className="mb-2">
+                    <strong>Publisher:</strong> <code>{datastreamResult.publisher}</code>
+                  </div>
+                  <div className="mb-4">
+                    <strong>Data ID:</strong> <code>{datastreamResult.dataId}</code>
+                  </div>
+                  
+                  <div className="card">
+                    <strong>Raw Results:</strong>
+                    <pre className="mt-2">{JSON.stringify(datastreamResult.results, null, 2)}</pre>
+                  </div>
+                  
+                  <div className="text-sm text-muted mt-4">
+                    <div>Result Type: {datastreamResult.metadata.resultType}</div>
+                    <div>Is Array: {datastreamResult.metadata.isArray ? 'Yes' : 'No'}</div>
+                    <div>Count: {datastreamResult.metadata.count}</div>
+                  </div>
                 </div>
               )}
-              <details style={{ marginTop: 8 }}>
-                <summary style={{ cursor: 'pointer', fontSize: '0.85em', color: '#666' }}>
-                  Technical Details
-                </summary>
-                <div style={{ fontSize: '0.8em', color: '#666', marginTop: 4 }}>
-                  <div>Phone Hash: {phoneQueryResult.phoneHash}</div>
-                </div>
-              </details>
             </div>
           )}
         </div>
-      )}
-
-      <hr style={{ margin: '2rem 0' }} />
-
-      <h2>Query Datastream</h2>
-      <p>Advanced: Query data directly from the datastream using schema name, publisher address, and data ID:</p>
-
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ marginBottom: 8 }}>
-          <label>Schema Name:</label>
-          <input 
-            value={datastreamQuery.schemaName}
-            onChange={e => setDatastreamQuery({...datastreamQuery, schemaName: e.target.value})}
-            placeholder="userRegistration"
-            style={{ marginLeft: 8, width: 200 }}
-          />
-        </div>
-        
-        <div style={{ marginBottom: 8 }}>
-          <label>Publisher Address:</label>
-          <input 
-            value={datastreamQuery.publisher}
-            onChange={e => setDatastreamQuery({...datastreamQuery, publisher: e.target.value})}
-            placeholder="0x123...abc"
-            style={{ marginLeft: 8, width: 300 }}
-          />
-        </div>
-        
-        <div style={{ marginBottom: 8 }}>
-          <label>Data ID (Phone Hash):</label>
-          <input 
-            value={datastreamQuery.dataId}
-            onChange={e => setDatastreamQuery({...datastreamQuery, dataId: e.target.value})}
-            placeholder="0x456...def"
-            style={{ marginLeft: 8, width: 300 }}
-          />
-        </div>
-        
-        <button onClick={queryDatastream} style={{ marginRight: 8 }}>Query Datastream</button>
-        <button onClick={queryDatastreamByPhone}>Auto-fill from Phone</button>
       </div>
-
-      {datastreamResult && !datastreamResult.loading && (
-        <div style={{ marginTop: 12, padding: 12, background: '#f0f8ff', borderRadius: 4 }}>
-          {datastreamResult.error && (
-            <div style={{ color: 'red' }}>Error: {datastreamResult.error}</div>
-          )}
-          {!datastreamResult.error && !datastreamResult.found && (
-            <div>No data found for the given parameters</div>
-          )}
-          {datastreamResult.found && (
-            <div>
-              <h3>Datastream Results</h3>
-              <div style={{ marginBottom: 8 }}>
-                <strong>Schema:</strong> {datastreamResult.schemaName} ({datastreamResult.schemaId})
-              </div>
-              <div style={{ marginBottom: 8 }}>
-                <strong>Publisher:</strong> {datastreamResult.publisher}
-              </div>
-              <div style={{ marginBottom: 8 }}>
-                <strong>Data ID:</strong> {datastreamResult.dataId}
-              </div>
-              <div style={{ marginTop: 12, padding: 8, background: 'white', borderRadius: 4 }}>
-                <strong>Raw Results:</strong>
-                <pre style={{ fontSize: '0.85em', overflow: 'auto', background: '#f5f5f5', padding: 8, borderRadius: 4 }}>
-                  {JSON.stringify(datastreamResult.results, null, 2)}
-                </pre>
-              </div>
-              <div style={{ marginTop: 8, fontSize: '0.85em', color: '#666' }}>
-                <div>Result Type: {datastreamResult.metadata.resultType}</div>
-                <div>Is Array: {datastreamResult.metadata.isArray ? 'Yes' : 'No'}</div>
-                <div>Count: {datastreamResult.metadata.count}</div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
-  );
+  </div>
+  </>
+);
 }
