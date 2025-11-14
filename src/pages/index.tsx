@@ -1,5 +1,5 @@
 // src/pages/index.tsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ethers } from 'ethers';
 
 // Phone utility functions (client-side versions)
@@ -54,22 +54,11 @@ export default function Home() {
 
   async function submit() {
     if (!address) return alert('Connect wallet first');
-    if (regMinLoss < 0 || regMinLoss > 100) return alert('Min loss must be between 0-100%');
-    if (regMaxProfit < 0 || regMaxProfit > 100) return alert('Max profit must be between 0-100%');
-    
-    setStatus('Registering...');
     // basic client side normalization: request E.164
     const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ 
-        phone, 
-        walletAddress: address, 
-        metainfo: '',
-        minLossPercentage: regMinLoss,
-        maxProfitPercentage: regMaxProfit,
-        tokenSymbol: 'STT'
-      })
+      body: JSON.stringify({ phone, walletAddress: address, metainfo: '' })
     });
     const j = await res.json();
     if (j.ok) setStatus('Registered! tx: ' + j.tx);
@@ -79,7 +68,7 @@ export default function Home() {
   async function queryRegistration() {
     if (!queryPhone) return alert('Enter phone number to query');
     setQueryResult({ loading: true });
-    const res = await fetch(`/api/query-with-thresholds?phone=${encodeURIComponent(queryPhone)}`);
+    const res = await fetch(`/api/query-by-events?phone=${encodeURIComponent(queryPhone)}`);
     const j = await res.json();
     setQueryResult(j);
   }
@@ -259,30 +248,6 @@ export default function Home() {
       <div style={{ marginBottom: 12 }}>
         <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+60123456789" />
       </div>
-      
-      <div style={{ marginBottom: 12 }}>
-        <label>Min Loss Percentage (%): </label>
-        <input 
-          type="number" 
-          value={regMinLoss} 
-          onChange={e => setRegMinLoss(Number(e.target.value))} 
-          min="0" 
-          max="100" 
-          style={{ width: 80, marginLeft: 8 }}
-        />
-      </div>
-      
-      <div style={{ marginBottom: 12 }}>
-        <label>Max Profit Percentage (%): </label>
-        <input 
-          type="number" 
-          value={regMaxProfit} 
-          onChange={e => setRegMaxProfit(Number(e.target.value))} 
-          min="0" 
-          max="100" 
-          style={{ width: 80, marginLeft: 8 }}
-        />
-      </div>
 
       <div>
         <button onClick={submit}>Register</button>
@@ -315,26 +280,15 @@ export default function Home() {
           )}
           {queryResult.found && queryResult.registrations && (
             <div>
-              <h3>🏦 Found {queryResult.registrationCount} registration(s) for {queryResult.phone}</h3>
+              <h3>Found {queryResult.count} registration(s) for {queryResult.phone}</h3>
               {queryResult.registrations.map((reg: any, idx: number) => (
-                <div key={idx} style={{ marginTop: 12, padding: 12, background: 'white', borderRadius: 4, border: '1px solid #ddd' }}>
+                <div key={idx} style={{ marginTop: 12, padding: 8, background: 'white', borderRadius: 4 }}>
                   <div><strong>Wallet Address:</strong> {reg.walletAddress}</div>
-                  <div><strong>Registered At:</strong> {reg.registeredAt}</div>
-                  
-                  {/* Show price thresholds if available */}
-                  {reg.hasThresholds && (
-                    <div style={{ marginTop: 8, padding: 8, background: '#e8f5e8', borderRadius: 4, border: '1px solid #4CAF50' }}>
-                      <h4 style={{ margin: '0 0 8px 0', color: '#2E7D32' }}>📊 Price Thresholds</h4>
-                      <div><strong>Min Loss:</strong> {reg.minLossPercentage}%</div>
-                      <div><strong>Max Profit:</strong> {reg.maxProfitPercentage}%</div>
-                      <div><strong>Token:</strong> {reg.tokenSymbol}</div>
-                    </div>
-                  )}
-                  
+                  <div><strong>Registered At:</strong> {reg.registeredAtISO}</div>
                   {reg.metainfo && <div><strong>Metainfo:</strong> {reg.metainfo}</div>}
                   <div style={{ fontSize: '0.85em', color: '#666', marginTop: 4 }}>
                     <div>Phone Hash: {reg.phoneHash}</div>
-                    <div>Record ID: {reg.recordId}</div>
+                    <div>Record ID: {reg.id}</div>
                   </div>
                 </div>
               ))}
