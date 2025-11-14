@@ -71,7 +71,7 @@ export default function HeroSection({
           </div>
 
           {/* Phone number input */}
-          <input
+          <inputcard
             placeholder="+60123456789"
             className="wallet-input"
             type="tel"
