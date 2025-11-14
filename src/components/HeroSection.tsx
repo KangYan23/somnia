@@ -20,11 +20,11 @@ export default function HeroSection({
   return (
     <div
       className="mb-8"
-      style={{ marginTop: '6rem' }} // spacing before hero
+      style={{ marginTop: '3rem' }} // spacing before hero
     >
       {/* ---------------- HERO TITLE ---------------- */}
-      <h1 className="text-center mb-6 text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight leading-snug whitespace-nowrap">
-        Meet{' '}
+      <h1 className="text-center mb-6 text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight leading-snug flex flex-wrap justify-center items-center gap-2">
+        <span>Meet</span>
         <span
           className="text-4xl md:text-5xl lg:text-6xl font-bold"
           style={{
@@ -36,8 +36,8 @@ export default function HeroSection({
           }}
         >
           IntelliBot
-        </span>{' '}
-        — Your Smart WhatsApp Wallet Agent
+        </span>
+        <span>— Your Smart WhatsApp Wallet Agent</span>
       </h1>
 
       {/* ---------------- HERO SUBTITLE ---------------- */}
@@ -49,24 +49,24 @@ export default function HeroSection({
       {/* ---------------- 3D WALLET CARD (plain classes) ---------------- */}
       <div className="wallet-card-wrapper">
         <div className="wallet-card">
-          <div className="wallet-card-title">WhatsApp Wallet — Register</div>
+          <div className="wallet-card-title">Start by connecting your wallet and registering your number.</div>
 
           {/* Connect Wallet */}
           <button
             onClick={onConnectWallet}
             className="wallet-btn wallet-btn-full"
           >
-            {address ? '✅ Wallet Connected' : '🔗 Connect Wallet'}
+            {address ? 'Wallet Connected!' : 'Connect Wallet'}
           </button>
 
           <div className="wallet-connected-line">
             <span className="label">Connected:</span>
             {address ? (
               <code className="addr">
-                {address.slice(0, 6)}...{address.slice(-4)}
+                {address}
               </code>
             ) : (
-              <span className="addr none">none</span>
+              <span className="addr none">None</span>
             )}
           </div>
 
