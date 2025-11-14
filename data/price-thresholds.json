@@ -1,0 +1,18 @@
+[
+  {
+    "phoneNumber": "+60123456789",
+    "phoneHash": "0x733609eaa793163dc59da00a8d08f9089c73903178cbef9b7ab81c3e76e18371",
+    "minLossPercentage": 5,
+    "maxProfitPercentage": 10,
+    "timestamp": 1763050061103,
+    "walletAddress": "0x7Dd088Dc87F6A9c709Fd366222169580fbCF95Ec"
+  },
+  {
+    "phoneNumber": "0177163313",
+    "phoneHash": "0x4edeb60717cdd20d5053ded0e670ee3bc3800206580b1a67bce3327c144f1eab",
+    "minLossPercentage": 5,
+    "maxProfitPercentage": 10,
+    "timestamp": 1763050302394,
+    "walletAddress": "unknown"
+  }
+]
