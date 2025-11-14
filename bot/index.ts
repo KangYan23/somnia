@@ -3,6 +3,8 @@ import axios from "axios";
 import dotenv from "dotenv";
 import { processNLP } from "./nlp";
 import { routeAction } from "./router";
+import { normalizePhone } from "../src/lib/phone";
+import { startEventSubscribers } from "./subscriber";
 
 dotenv.config();
 
@@ -83,12 +85,42 @@ app.post("/webhook", async (req, res) => {
   }
 
   // ------------------------------
-  // 4. Route action to service (NO ACTUAL ACTION IMPLEMENTED)
+  // 4. Route action to service
   // ------------------------------
+  // Normalize sender phone from WhatsApp (from field is the phone number)
+  let senderPhoneNormalized: string | undefined;
+  try {
+    // WhatsApp phone numbers come in format like "1234567890" or with country code
+    // Normalize it to ensure consistent format
+    senderPhoneNormalized = normalizePhone(from);
+    console.log("📱 Sender phone normalized:", senderPhoneNormalized);
+  } catch (e) {
+    console.warn("⚠️ Failed to normalize sender phone:", e);
+    // Continue without sender phone if normalization fails
+  }
+
+  // Add sender_phone to action if it needs it (transfer, check_balance)
+  if (action && senderPhoneNormalized) {
+    if (action.action === "transfer" || action.action === "check_balance") {
+      action.sender_phone = senderPhoneNormalized;
+      console.log(`✅ Added sender_phone to ${action.action} action:`, senderPhoneNormalized);
+    }
+  }
+
+  // Fallback: Check original message for "all" keyword if check_balance action
+  // This handles cases where NLP didn't extract "all" in token field
+  if (action && action.action === "check_balance" && text) {
+    const textLower = text.toLowerCase();
+    if ((textLower.includes("all") || textLower.includes("every")) && !action.token) {
+      action.token = "all";
+      console.log(`✅ Detected "all" keyword in message, setting token to "all"`);
+    }
+  }
+
   console.log("🚀 Routing action:", action);
   let serviceReply;
   try {
-    serviceReply = await routeAction(action);
+    serviceReply = await routeAction(action, senderPhoneNormalized);
     console.log("🚀 Service reply:", serviceReply);
   } catch (error) {
     console.error("❌ Action execution failed:", error);
@@ -126,7 +158,19 @@ async function sendWhatsAppMessage(to: string, msg: string) {
   }
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 WhatsApp bot running on port ${PORT}`);
   console.log(`VERIFY TOKEN = ${VERIFY_TOKEN}`);
+  console.log('');
+  
+  // Start event subscribers (for transfer notifications)
+  console.log('📡 Starting event subscribers...');
+  try {
+    await startEventSubscribers();
+    console.log('✅ All services started successfully!\n');
+  } catch (error: any) {
+    console.error('⚠️ Failed to start event subscribers:', error.message);
+    console.error('   Bot will continue running, but notifications may not work.');
+    console.error('   Check RPC_WS_URL and subscriber configuration.\n');
+  }
 });
