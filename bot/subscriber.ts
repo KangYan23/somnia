@@ -1,14 +1,8 @@
-// bot/subscriber.js
+// bot/subscriber.ts
 import { SDK } from '@somnia-chain/streams';
 import { publicClient } from '../src/lib/somnia';
-import WebSocket from 'ws'; // ensure install if needed
-import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 dotenv.config();
-
-const rpcUrl = process.env.RPC_URL;
-const wsUrl = process.env.RPC_WS_URL; // if Somnia has ws
-const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) });
 
 const sdk = new SDK({ public: publicClient as any });
 
@@ -32,10 +26,9 @@ async function start() {
         return;
       }
       const schemaId = schemaIdRaw as `0x${string}`;
-      // publisher: if you wrote using your server publisher (the same key)
-      // For simplicity, try to use the SDK public helpers; if getByKey requires publisher address, supply your publisher address
-      const publisher = process.env.SOMNIA_PUBLISHER_ADDRESS;
-  const items = await sdk.streams.getByKey(schemaId, publisher as any, phoneHash);
+      // publisher: use the correct environment variable name
+      const publisher = process.env.PUBLISHER_ADDRESS;
+      const items = await sdk.streams.getByKey(schemaId, publisher as any, phoneHash);
       console.log('Registration data (raw/decoded):', items);
 
       // parse decoded items if necessary (depending on SDK output)

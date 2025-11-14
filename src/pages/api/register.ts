@@ -1,15 +1,7 @@
 // src/pages/api/register.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { sdk } from '../../lib/somnia';
-import { normalizePhone, hashPhone } from '../../lib/phone';
-import { AbiCoder, hexlify, randomBytes } from 'ethers';
-
-function abiEncodeUserRegistration(phoneHash: string, wallet: string, metainfo: string, ts: number) {
-  // use ethers AbiCoder to encode the tuple in the same order as schema
-  const abiCoder = new AbiCoder();
-  // types: bytes32, address, string, uint64
-  return abiCoder.encode(['bytes32','address','string','uint64'], [phoneHash, wallet, metainfo, BigInt(ts)]);
-}
+import { createPhoneHash, abiEncodeUserRegistration, generateDataId } from '../../utils/registration-utils';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method' });
@@ -17,9 +9,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { phone, walletAddress, metainfo } = req.body;
     if (!phone || !walletAddress) return res.status(400).json({ error: 'phone & walletAddress required' });
 
-    // normalize & hash
-    const normalized = normalizePhone(phone);
-    const phoneHash = hashPhone(normalized);
+    // normalize & hash using unified utility
+    const { normalized, phoneHash } = createPhoneHash(phone);
     const ts = Date.now();
 
     // compute schemaId (optional); you must have registered schema previously
@@ -31,8 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const dataHex = abiEncodeUserRegistration(phoneHash, walletAddress, metainfo || '', ts) as `0x${string}`;
 
-    // Use phoneHash as dataId so we can query by phone hash later
-    const dataId = phoneHash as `0x${string}`;
+    // Use unified data ID generation
+    const dataId = generateDataId(phoneHash) as `0x${string}`;
 
     // Basic payload validation to surface errors before calling the contract
     function isHex32(h: string) {

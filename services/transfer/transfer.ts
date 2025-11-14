@@ -1,9 +1,8 @@
-// Updated to use walletClient.sendTransaction consistently
+// Updated to use unified registration utilities
 // services/transfer/transfer.ts
-import { normalizePhone, hashPhone } from "../../src/lib/phone";
 import { sdk, walletClient, account } from "../../src/lib/somnia";
-import { AbiCoder } from "ethers";
 import { parseEther } from "viem";
+import { createPhoneHash, processRegistrationResult, validatePhoneHash } from "../../src/utils/registration-utils";
 
 export async function handleTransfer(action: {
   amount: number;
@@ -18,28 +17,24 @@ export async function handleTransfer(action: {
     throw new Error("Invalid transfer params: require recipient_phone and positive amount");
   }
 
-  // 1) Convert phone ➜ wallet address (query mapping via Somnia Streams)
-  // Normalize phone; if no country code, try default from env
+  // 1) Convert phone ➜ wallet address using unified utilities
   const raw = recipient_phone.trim();
   const withCc = raw.startsWith('+')
     ? raw
     : ((process.env.DEFAULT_COUNTRY_CODE || '').trim() + raw);
-  const normalized = normalizePhone(withCc);
-  const phoneHash = hashPhone(normalized);
+  
+  const { normalized, phoneHash } = createPhoneHash(withCc);
 
   const schemaId = await sdk.streams.idToSchemaId("userRegistration");
   if (!schemaId || /^0x0+$/.test(schemaId)) {
     throw new Error("userRegistration schema not found. Run schema registration first.");
   }
   console.log("Transfer: normalized phone=", normalized, " phoneHash=", phoneHash);
-  console.log("DEBUG: Querying with phoneHash:", phoneHash);
 
   // Query the data stream for phone registration
   let recipientWallet: string | undefined;
   
   try {
-    console.log("📞 Querying data stream for phone registration...");
-    
     // Try multiple potential publisher addresses since the SDK may have publisher-specific data
     const potentialPublishers = [
       process.env.PUBLISHER_ADDRESS,
@@ -49,71 +44,25 @@ export async function handleTransfer(action: {
     ].filter(Boolean).filter((addr, idx, arr) => arr.indexOf(addr) === idx);
 
     for (const publisher of potentialPublishers) {
-      console.log(`🔍 Trying publisher: ${publisher}`);
-      
       try {
         const results = await sdk.streams.getByKey(
           schemaId as `0x${string}`,
           publisher as `0x${string}`,
           phoneHash as `0x${string}`
         );
-
-        console.log(`DEBUG: Results from publisher ${publisher}:`, results?.length || 0, "records");
         
         if (results && results.length > 0) {
-          // Handle both decoded and raw data formats
-          const firstResult = results[0];
+          // Use unified result processing
+          const registration = processRegistrationResult(results[0], publisher, 'transfer_query');
           
-          if (Array.isArray(firstResult)) {
-            // Decoded format: array of field objects
-            const returnedPhoneHash = firstResult[0]?.value?.value;
-            const returnedWallet = firstResult[1]?.value?.value;
-            
-            console.log(`DEBUG: Publisher ${publisher} phoneHash check:`);
-            console.log(`  Expected: ${phoneHash}`);
-            console.log(`  Returned: ${returnedPhoneHash}`);
-            console.log(`  Match: ${phoneHash === returnedPhoneHash}`);
-            
-            if (phoneHash === returnedPhoneHash && returnedWallet && typeof returnedWallet === 'string') {
-              recipientWallet = returnedWallet as string;
-              console.log(`✅ Found correct registration with publisher: ${publisher}`);
-              console.log(`✅ Wallet: ${recipientWallet}`);
-              break;
-            } else if (returnedPhoneHash !== phoneHash) {
-              console.log(`❌ Publisher ${publisher} has different phone data`);
-            }
-          } else if (typeof firstResult === "string") {
-            // Raw hex format: needs ABI decoding
-            console.log(`DEBUG: Decoding raw hex data from publisher ${publisher}`);
-            try {
-              const abiCoder = new AbiCoder();
-              const decoded = abiCoder.decode(
-                ["bytes32", "address", "string", "uint64"],
-                firstResult
-              );
-              
-              const decodedPhoneHash = decoded[0] as string;
-              const decodedWallet = decoded[1] as string;
-              
-              console.log(`DEBUG: Decoded phoneHash: ${decodedPhoneHash}`);
-              console.log(`DEBUG: Expected phoneHash: ${phoneHash}`);
-              console.log(`DEBUG: Match: ${phoneHash === decodedPhoneHash}`);
-              
-              if (phoneHash === decodedPhoneHash && decodedWallet) {
-                recipientWallet = decodedWallet;
-                console.log(`✅ Found correct registration (decoded) with publisher: ${publisher}`);
-                console.log(`✅ Wallet: ${recipientWallet}`);
-                break;
-              }
-            } catch (decodeError: any) {
-              console.log(`❌ Failed to decode data from publisher ${publisher}:`, decodeError.message);
-            }
+          if (registration && validatePhoneHash(phoneHash, registration.phoneHash)) {
+            recipientWallet = registration.walletAddress;
+            console.log(`✅ Found registration with publisher: ${publisher}`);
+            break;
           }
-        } else {
-          console.log(`❌ No data from publisher ${publisher}`);
         }
       } catch (queryError: any) {
-        console.log(`❌ Query failed for publisher ${publisher}:`, queryError.message);
+        // Silent continue to next publisher
       }
     }
 
@@ -132,27 +81,14 @@ export async function handleTransfer(action: {
 
   console.log("Transfer: resolved recipient wallet=", recipientWallet);
   
-  // Check if recipient wallet is same as sender wallet 
-  const senderWallet = process.env.WALLET_ADDRESS || account?.address;
-  if (recipientWallet.toLowerCase() === senderWallet?.toLowerCase()) {
-    console.warn("⚠️  WARNING: Recipient wallet is same as sender wallet!");
-    console.warn("⚠️  This means the recipient phone is registered to the sender's wallet.");
-    console.warn("⚠️  Recipient phone:", normalized);
-    console.warn("⚠️  Recipient wallet:", recipientWallet);
-    console.warn("⚠️  Sender wallet:", senderWallet);
-  }
-
   // 2) Create Somnia transaction
   let txHash: `0x${string}`;
   let eventAmountWei: bigint;
   const upper = token.toUpperCase();
   
   if (upper === "SOMI" || upper === "STT") {
-    // Both SOMI and STT are native currency transfers on Somnia
-    // STT is the actual native token symbol on Somnia testnet
     const value = parseEther(String(amount));
     eventAmountWei = value;
-    console.log(`📤 Sending ${amount} ${upper} (native transfer) to:`, recipientWallet);
     
     txHash = await walletClient.sendTransaction({
       to: recipientWallet as `0x${string}`,
