@@ -54,7 +54,7 @@ export default function HeroSection({
           {/* Connect Wallet */}
           <button
             onClick={onConnectWallet}
-            className="wallet-btn wallet-btn-full"
+            className={`wallet-btn wallet-btn-full ${address ? 'wallet-btn-connected' : ''}`}
           >
             {address ? 'Wallet Connected!' : 'Connect Wallet'}
           </button>
@@ -87,7 +87,7 @@ export default function HeroSection({
             onClick={onSubmit}
             className="wallet-btn wallet-btn-full wallet-btn-secondary"
           >
-            📲 Register Phone &amp; Wallet
+            Register Phone &amp; Wallet
           </button>
 
           {/* Status message */}
