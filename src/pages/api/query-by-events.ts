@@ -1,7 +1,8 @@
 // src/pages/api/query-by-events.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { sdk } from '../../lib/somnia';
-import { createPhoneHash, processRegistrationResult } from '../../utils/registration-utils';
+import { normalizePhone, hashPhone } from '../../lib/phone';
+import { AbiCoder } from 'ethers';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -63,10 +64,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Process records
           if (records && records.length > 0) {
             for (const record of records) {
-              // Use unified result processing
-              const registration = processRegistrationResult(record, publisher, 'api_query');
-              if (registration) {
-                allRegistrations.push(registration);
+              try {
+                let registration: any = null;
+                
+                if (Array.isArray(record)) {
+                  // Decoded format: array of field objects
+                  registration = {
+                    phoneHash: record[0]?.value?.value || record[0]?.value || record[0],
+                    walletAddress: record[1]?.value?.value || record[1]?.value || record[1],
+                    metainfo: record[2]?.value?.value || record[2]?.value || record[2] || '',
+                    registeredAt: Number(record[3]?.value?.value || record[3]?.value || record[3] || 0)
+                  };
+                } else if (typeof record === "string") {
+                  // Raw hex format: decode using AbiCoder (following event-decoder.ts pattern)
+                  const abiCoder = new AbiCoder();
+                  const decodedData = abiCoder.decode(["bytes32", "address", "string", "uint64"], record);
+                  registration = {
+                    phoneHash: decodedData[0],
+                    walletAddress: decodedData[1],
+                    metainfo: decodedData[2],
+                    registeredAt: Number(decodedData[3])
+                  };
+                } else if (record.data) {
+                  // Data wrapper format: decode the inner data
+                  const abiCoder = new AbiCoder();
+                  const decodedData = abiCoder.decode(["bytes32", "address", "string", "uint64"], record.data);
+                  registration = {
+                    phoneHash: decodedData[0],
+                    walletAddress: decodedData[1],
+                    metainfo: decodedData[2],
+                    registeredAt: Number(decodedData[3])
+                  };
+                }
+                
+                if (registration && registration.phoneHash && registration.walletAddress) {
+                  allRegistrations.push({
+                    ...registration,
+                    registeredAtISO: new Date(registration.registeredAt).toISOString(),
+                    publisher,
+                    source: 'all_data_query'
+                  });
+                }
+              } catch (e: any) {
+                console.log("Failed to decode record:", e.message);
               }
             }
           }
@@ -88,8 +128,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'phone parameter required (or use ?all=true to get all registrations)' });
     }
 
-    // normalize & hash using unified utility
-    const { normalized, phoneHash } = createPhoneHash(phone);
+    // normalize & hash using phone.ts utilities
+    const normalized = normalizePhone(phone);
+    const phoneHash = hashPhone(normalized);
 
     console.log(`Querying data stream for phone: ${normalized}`);
     console.log(`Phone hash: ${phoneHash}`);

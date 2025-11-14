@@ -4,6 +4,7 @@ import { SDK } from '@somnia-chain/streams';
 import { createPublicClient, createWalletClient, http, webSocket } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { somniaTestnet } from 'viem/chains';
+import { buildSomniaChainWithWs } from './somniaChain';
 
 const RPC_URL = process.env.RPC_URL;
 let RPC_WS_URL = process.env.RPC_WS_URL;
@@ -31,5 +32,6 @@ export { walletClient, account, publicClient };
 
 // If you want WebSocket subscription later, init a public websocket client similarly (for bot)
 export function createPublicWsClient(wsUrl: string) {
-  return createPublicClient({ chain: somniaTestnet, transport: webSocket(wsUrl) });
+  const somniaChainWithWs = buildSomniaChainWithWs(wsUrl);
+  return createPublicClient({ chain: somniaChainWithWs, transport: webSocket(wsUrl) });
 }
