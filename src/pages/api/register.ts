@@ -52,8 +52,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       tokenSymbol || 'STT'
     ) as `0x${string}`;
 
-    // Generate single data ID for user registration
-    const userDataId = hexlify(randomBytes(32)) as `0x${string}`;
+    // Use phone hash as dataId for deterministic lookup
+    // This allows querying user data directly by phone number
+    const dataId = phoneHash as `0x${string}`;
 
     // Basic payload validation
     function isHex32(h: string) {
@@ -67,42 +68,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!isHex32(phoneHash)) return res.status(400).json({ error: 'phoneHash must be 32 bytes (0x + 64 hex chars)' });
     if (!isHex32(phoneHash)) return res.status(400).json({ error: 'phoneHash must be 32 bytes (0x + 64 hex chars)' });
 
-    // Event argument topics must be 32-byte hex values for indexed params
-    const argumentTopics = [phoneHash as `0x${string}`];
-    for (const t of argumentTopics) {
-      if (!isHex32(t as string)) return res.status(400).json({ error: `argument topic ${t} is not 32 bytes` });
-    }
-
-    // Event data: encode non-indexed params (address walletAddress, uint64 registeredAt)
-    // The event schema is: UserRegistrationBroadcast(bytes32 indexed phoneHash, address walletAddress, uint64 registeredAt)
-    // indexed -> topics; non-indexed -> data
-    const abiCoder = new AbiCoder();
-    const eventData = abiCoder.encode(['address', 'uint64'], [walletAddress, BigInt(ts)]) as `0x${string}`;
-
-    // Store user registration with thresholds and emit event
+    // Publish data stream only (no events)
     console.log('Prepared payload:', {
-      userDataId,
-      userSchemaId,
-      userDataHexLength: (userDataHex || '').length,
-      argumentTopics,
-      eventDataLength: eventData.length,
-      minLossPercentage,
-      maxProfitPercentage,
-      tokenSymbol: tokenSymbol || 'STT'
+      dataId,
+      schemaId,
+      dataHexLength: (dataHex || '').length
     });
 
-    const tx = await sdk.streams.setAndEmitEvents(
-      [
-        { id: userDataId as `0x${string}`, schemaId: userSchemaId, data: userDataHex }
-      ],
-      [
-        {
-          id: 'UserRegistrationBroadcast',
-          argumentTopics: argumentTopics as any,
-          data: eventData
-        }
-      ]
-    );
+    const tx = await sdk.streams.set([
+      { id: dataId as `0x${string}`, schemaId, data: dataHex }
+    ]);
 
     return res.json({ ok: true, tx });
   } catch (err: any) {
