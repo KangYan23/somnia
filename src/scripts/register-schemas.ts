@@ -19,6 +19,11 @@ async function register() {
       id: 'priceThreshold',
       schema: 'bytes32 phoneHash, string tokenSymbol, uint256 minPrice, uint256 maxPrice, uint64 updatedAt',
       parentSchemaId: zeroBytes32
+    },
+    {
+      id: 'transferHistory',
+      schema: 'bytes32 fromPhoneHash, bytes32 toPhoneHash, string fromPhone, string toPhone, uint256 amount, string token, bytes32 txHash, uint64 timestamp',
+      parentSchemaId: zeroBytes32
     }
   ];
 
