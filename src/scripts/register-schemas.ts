@@ -61,7 +61,8 @@ async function register() {
         { name:'registeredAt', paramType:'uint64', isIndexed: false }
       ],
       eventTopic: 'UserRegistrationBroadcast(bytes32 indexed phoneHash, address walletAddress, uint64 registeredAt)'
-    }
+    },
+   
   ];
 
   console.log('Registering data schemas...');

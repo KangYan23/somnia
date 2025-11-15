@@ -7,9 +7,14 @@ import { AbiCoder } from 'ethers';
 // Encode priceThreshold schema: bytes32 phoneHash, string tokenSymbol, uint256 minPrice, uint256 maxPrice, uint64 updatedAt
 function abiEncodePriceThreshold(phoneHash: string, tokenSymbol: string, minPrice: number|string, maxPrice: number|string, ts: number) {
   const abiCoder = new AbiCoder();
+  
+  // Convert prices to wei (multiply by 1e18) before converting to BigInt
+  const minPriceWei = BigInt(Math.floor(parseFloat(minPrice.toString()) * 1e18));
+  const maxPriceWei = BigInt(Math.floor(parseFloat(maxPrice.toString()) * 1e18));
+  
   return abiCoder.encode(
     ['bytes32', 'string', 'uint256', 'uint256', 'uint64'],
-    [phoneHash, tokenSymbol, BigInt(minPrice), BigInt(maxPrice), BigInt(ts)]
+    [phoneHash, tokenSymbol, minPriceWei, maxPriceWei, BigInt(ts)]
   );
 }
 

@@ -28,9 +28,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const schemaId = schemaIdRaw as `0x${string}`;
 
     // Query all data for this publisher
-    const results = await sdk.streams.getAllPublisherDataForSchema(schemaId, publisher as `0x${string}`);
+    let results = await sdk.streams.getAllPublisherDataForSchema(schemaId, publisher as `0x${string}`);
+    
+    // If no results with environment publisher, try with wallet address (in case data was stored with wallet)
+    if ((!results || results.length === 0) && process.env.WALLET_ADDRESS && publisher !== process.env.WALLET_ADDRESS) {
+      console.log('🔄 No data found with environment publisher, trying wallet address:', process.env.WALLET_ADDRESS);
+      try {
+        results = await sdk.streams.getAllPublisherDataForSchema(schemaId, process.env.WALLET_ADDRESS as `0x${string}`);
+      } catch (walletError) {
+        console.log('⚠️ Wallet address query also failed:', walletError);
+      }
+    }
+    
     if (!results || results.length === 0) {
-      return res.json({ found: false, message: 'No priceThreshold found for this publisher' });
+      return res.json({ found: false, message: 'No priceThreshold found for this publisher or wallet address' });
     }
 
     // Normalize results with proper field mapping
@@ -70,11 +81,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return obj;
     });
 
-    // Find matching phoneHash
-    const match = processed.find((item: any) => item.phoneHash === phoneHash);
-    if (!match) {
+    // Find all matching phoneHashes and get the most recent one
+    const matches = processed.filter((item: any) => item.phoneHash === phoneHash);
+    if (!matches || matches.length === 0) {
       return res.json({ found: false, message: 'No priceThreshold found for this phone' });
     }
+
+    // Sort by updatedAt timestamp to get the most recent one
+    const match = matches.sort((a: any, b: any) => {
+      const aTime = Number(a.updatedAt || 0);
+      const bTime = Number(b.updatedAt || 0);
+      return bTime - aTime; // Sort descending (most recent first)
+    })[0];
+
+    console.log(`📊 Found ${matches.length} records for phone, using most recent:`, match);
 
     console.log('🎯 Final result:', {
       found: true,
@@ -85,12 +105,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       updatedAt: match.updatedAt
     });
 
+    // Convert wei prices back to USD for display
+    const minPriceUSD = Number(match.minPrice) / 1e18;
+    const maxPriceUSD = Number(match.maxPrice) / 1e18;
+
     return res.json({
       found: true,
       phone,
       tokenSymbol: match.tokenSymbol,
-      minPrice: match.minPrice,
-      maxPrice: match.maxPrice,
+      minPrice: minPriceUSD.toFixed(6),
+      maxPrice: maxPriceUSD.toFixed(6),
       updatedAt: match.updatedAt
     });
 

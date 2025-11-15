@@ -464,8 +464,8 @@ export default function Home() {
                   <strong>💰 Price Threshold:</strong>
                   <div style={{ fontSize: '0.9em', marginTop: 4 }}>
                     <div><strong>Token:</strong> {phoneQueryResult.priceThreshold.tokenSymbol || 'STT'}</div>
-                    <div><strong>Min Price:</strong> {phoneQueryResult.priceThreshold.minPrice}</div>
-                    <div><strong>Max Price:</strong> {phoneQueryResult.priceThreshold.maxPrice}</div>
+                    <div><strong>Min Price:</strong> ${phoneQueryResult.priceThreshold.minPrice} USD</div>
+                    <div><strong>Max Price:</strong> ${phoneQueryResult.priceThreshold.maxPrice} USD</div>
                     {phoneQueryResult.priceThreshold.updatedAt && (
                       <div><strong>Updated:</strong> {new Date(parseInt(phoneQueryResult.priceThreshold.updatedAt)).toISOString()}</div>
                     )}
