@@ -88,20 +88,22 @@ app.post("/webhook", async (req, res) => {
   // 4. Route action to service
   // ------------------------------
   // Normalize sender phone from WhatsApp (from field is the phone number)
+  // WhatsApp sends phone like "601110851129" (with country code but no +)
+  // We'll strip country code when storing in data stream, but keep full number for now
   let senderPhoneNormalized: string | undefined;
   try {
-    // WhatsApp phone numbers come in format like "1234567890" or with country code
-    // Normalize it to ensure consistent format
+    // Just normalize (remove non-digits, keep + if present)
+    // The country code will be stripped in transfer.ts when storing
     senderPhoneNormalized = normalizePhone(from);
-    console.log("📱 Sender phone normalized:", senderPhoneNormalized);
+    console.log("📱 Sender phone from WhatsApp:", senderPhoneNormalized);
   } catch (e) {
     console.warn("⚠️ Failed to normalize sender phone:", e);
     // Continue without sender phone if normalization fails
   }
 
-  // Add sender_phone to action if it needs it (transfer, check_balance)
+  // Add sender_phone to action if it needs it (transfer, check_balance, transaction_history)
   if (action && senderPhoneNormalized) {
-    if (action.action === "transfer" || action.action === "check_balance") {
+    if (action.action === "transfer" || action.action === "check_balance" || action.action === "transaction_history") {
       action.sender_phone = senderPhoneNormalized;
       console.log(`✅ Added sender_phone to ${action.action} action:`, senderPhoneNormalized);
     }
@@ -117,6 +119,11 @@ app.post("/webhook", async (req, res) => {
     }
   }
 
+  // Check if token is missing for transfer action - ask user to specify
+  if (action && action.action === "transfer" && !action.token) {
+    return "❓ Please specify the token (STT or SOMI).\n\nExample: \"transfer 0.5 STT to 0177163313\" or \"transfer 1 SOMI to 01110851129\"";
+  }
+
   console.log("🚀 Routing action:", action);
   let serviceReply;
   try {
@@ -127,9 +134,18 @@ app.post("/webhook", async (req, res) => {
     serviceReply = `❌ Transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
 
+  // Calculate final reply: use serviceReply if available, otherwise use cleaned aiResponse
   const finalReply = serviceReply || aiResponse.replace(/```(?:json)?\s*{[\s\S]*?}\s*```/g, "").trim();
-  console.log("📤 Final reply to user:", finalReply);
+  
+  // Skip sending message only if both serviceReply is null AND there's no aiResponse to send
+  // (e.g., transfer completed, notifications sent via events, and no NLP response)
+  if (serviceReply === null && !finalReply) {
+    console.log("📤 No reply to send (notifications will be sent via events)");
+    res.sendStatus(200);
+    return;
+  }
 
+  console.log("📤 Final reply to user:", finalReply);
   await sendWhatsAppMessage(from, finalReply);
 
   res.sendStatus(200);

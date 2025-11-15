@@ -1,5 +1,6 @@
 import { handleTransfer } from "../services/transfer/transfer";
 import { handleCheckBalance } from "../services/balance/balance";
+import { handleTransactionHistory } from "../services/transaction-history/handler";
 
 export async function routeAction(action: any, senderPhone?: string) {
   if (!action) return null; // No structured action → AI-only message
@@ -33,6 +34,18 @@ export async function routeAction(action: any, senderPhone?: string) {
         token: action.token || "STT (default)"
       });
       return await handleCheckBalance(action);
+
+    case "transaction_history":
+      // Ensure sender_phone is set if provided
+      if (senderPhone && !action.sender_phone) {
+        action.sender_phone = senderPhone;
+      }
+      console.log("📋 Executing transaction history with action:", {
+        action: action.action,
+        sender_phone: action.sender_phone || "not provided",
+        limit: action.limit || 10
+      });
+      return await handleTransactionHistory(action);
 
     case "price_alert":
       return (

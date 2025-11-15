@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "register-schemas": "npx tsx src/scripts/register-schemas.ts",
+    "test-transaction-history": "npx tsx src/scripts/test-transaction-history.ts",
+    "list-all-transactions": "npx tsx src/scripts/list-all-transactions.ts"
   },
   "dependencies": {
     "@somnia-chain/streams": "^0.9.5",

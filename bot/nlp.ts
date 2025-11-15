@@ -21,7 +21,7 @@ User says: "send 0.5 STT to 0177163313" or "transfer 1 SOMI to +60123456789"
 {
   "action": "transfer",
   "amount": <number>,
-  "token": "STT",
+  "token": "STT" (REQUIRED - must be "STT" or "SOMI". If user doesn't specify, leave it empty/null),
   "recipient_phone": "<phone>"
 }
 -------------------------------------------------------
@@ -35,6 +35,13 @@ User says: "check balance", "what's my balance", "show my STT balance", "balance
     - Multi-chain: "sepolia eth", "eth sepolia", "ethereum eth", "eth mainnet"
     - ERC-20 tokens: "USDT", "USDC", etc. (requires TOKEN_ADDRESS_* in .env)
   )
+}
+-------------------------------------------------------
+ACTION: transaction history
+User says: "transaction history", "recent transactions", "show my transactions", "my transactions", "transaction list", "history", "past transactions", "transaction record"
+{
+  "action": "transaction_history",
+  "limit": 10 (optional, defaults to 10. Max number of transactions to return)
 }
 -------------------------------------------------------
 ACTION: price alert
@@ -53,6 +60,9 @@ IMPORTANT RULES:
 - When user asks about balance (any variation), ALWAYS use check_balance action.
 - Do NOT invent extra fields.
 - Token is optional for check_balance - if not mentioned, use "STT".
+- For transfer action: Token is REQUIRED. If user doesn't specify token, leave token field empty/null in JSON.
+- ALWAYS extract the exact token the user mentions (STT or SOMI). If user says "STT", use "STT". If user says "SOMI", use "SOMI".
+- If user doesn't mention any token, leave token field empty/null - the bot will ask the user to specify.
 
 Examples:
 User: "check balance" → Reply: "I'll check your balance for you!\n\`\`\`json\n{\"action\": \"check_balance\"}\n\`\`\`"

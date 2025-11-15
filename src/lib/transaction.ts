@@ -1,20 +1,13 @@
 // src/lib/transaction.ts
 /**
- * Transaction utilities for querying transfer data streams
+ * Transaction utilities and type definitions
  * 
- * This module provides utilities to query transfer records from data streams
- * using transaction hashes from TransferConfirmed events.
- * 
- * Event → Data Stream Reference Pattern:
- * 1. Event contains txHash in its data field
- * 2. Data stream uses txHash as the dataId (key)
- * 3. Use txHash to query the data stream for full transfer details
+ * Shared utilities for transaction operations across the application.
+ * Used by transfer service, transaction history, and notifications.
  */
 
-import { sdk } from './somnia';
+import { formatEther, formatUnits } from 'viem';
 import { AbiCoder } from 'ethers';
-import type { Hex } from 'viem';
-import { decodeAbiParameters } from 'viem';
 
 export interface TransferRecord {
   fromPhoneHash: `0x${string}`;
@@ -27,97 +20,86 @@ export interface TransferRecord {
   timestamp: bigint;
 }
 
+export interface UserRegistration {
+  phoneHash: `0x${string}`;
+  walletAddress: string;
+  phone: string;
+  timestamp: bigint;
+}
+
 /**
- * Extract txHash from TransferConfirmed event data
- * @param eventData - ABI-encoded event data from TransferConfirmed event
- * @returns Transaction hash that can be used to query data stream
+ * Event signatures for transaction events
  */
-export function extractTxHashFromEvent(eventData: Hex): `0x${string}` | null {
+export const TRANSFER_EVENT_SIGNATURES = {
+  TransferIntentCreated: 'TransferIntentCreated(bytes32,bytes32,string,string,uint256,string)',
+  TransferConfirmed: 'TransferConfirmed(bytes32,bytes32,string,string,uint256,string,bytes32)'
+} as const;
+
+/**
+ * Decode userRegistration record from various formats
+ * Handles: raw hex string, decoded array, or object with data property
+ * 
+ * @param record - Registration record in any format
+ * @returns Decoded registration data or null if decoding fails
+ */
+export function decodeUserRegistration(record: any): UserRegistration | null {
+  const abiCoder = new AbiCoder();
+  let decoded: any;
+  
   try {
-    const decoded = decodeAbiParameters(
-      [
-        { type: 'string' },   // fromPhone
-        { type: 'string' },   // toPhone
-        { type: 'uint256' },  // amount
-        { type: 'string' },   // token
-        { type: 'bytes32' }   // txHash
-      ],
-      eventData
-    );
+    if (typeof record === 'string') {
+      // Raw hex format
+      decoded = abiCoder.decode(['bytes32', 'address', 'string', 'uint64'], record);
+    } else if (Array.isArray(record)) {
+      // Already decoded format
+      decoded = record.map((item: any) => item?.value?.value || item?.value || item);
+    } else if (record && typeof record === 'object' && 'data' in record) {
+      // Data wrapper format
+      decoded = abiCoder.decode(['bytes32', 'address', 'string', 'uint64'], (record as any).data);
+    } else {
+      return null;
+    }
     
-    return decoded[4] as `0x${string}`; // txHash is the 5th field (index 4)
+    return {
+      phoneHash: decoded[0] as `0x${string}`,
+      walletAddress: decoded[1] as string,
+      phone: decoded[2] as string,
+      timestamp: decoded[3] as bigint
+    };
   } catch (error) {
-    console.error('Failed to extract txHash from event:', error);
     return null;
   }
 }
 
 /**
- * Query transfer record from data stream using txHash from event
+ * Decode transferHistory record from various formats
+ * Handles: raw hex string, decoded array, or object with data property
  * 
- * This demonstrates the event → data stream reference pattern:
- * Event (TransferConfirmed) → Extract txHash → Query data stream (transferHistory)
- * 
- * @param txHash - Transaction hash from TransferConfirmed event
- * @param publisherAddress - Publisher address who stored the data (optional, uses env var if not provided)
- * @returns Decoded transfer record or null if not found
+ * @param record - Transfer record in any format
+ * @returns Decoded transfer record or null if decoding fails
  */
-export async function queryTransferByTxHash(
-  txHash: `0x${string}`,
-  publisherAddress?: string
-): Promise<TransferRecord | null> {
+export function decodeTransferRecord(record: any): TransferRecord | null {
+  const abiCoder = new AbiCoder();
+  let decoded: any;
+  
   try {
-    // Get schema ID for transferHistory
-    const schemaId = await sdk.streams.idToSchemaId('transferHistory');
-    if (!schemaId || /^0x0+$/.test(schemaId)) {
-      console.error('transferHistory schema not found. Register schema first.');
-      return null;
-    }
-
-    // Use publisher from parameter or environment
-    const publisher = publisherAddress || process.env.PUBLISHER_ADDRESS || process.env.WALLET_ADDRESS;
-    if (!publisher) {
-      console.error('Publisher address required. Provide as parameter or set PUBLISHER_ADDRESS/WALLET_ADDRESS in env.');
-      return null;
-    }
-
-    console.log(`🔍 Querying transferHistory data stream...`);
-    console.log(`   Schema: transferHistory`);
-    console.log(`   Key (txHash): ${txHash}`);
-    console.log(`   Publisher: ${publisher}`);
-
-    // Query data stream using txHash as the key
-    const results = await sdk.streams.getByKey(
-      schemaId as `0x${string}`,
-      publisher as `0x${string}`,
-      txHash // Use txHash from event as the dataId key
-    );
-
-    if (!results || results.length === 0) {
-      console.log('❌ No transfer record found for this txHash');
-      return null;
-    }
-
-    // Decode the result
-    const abiCoder = new AbiCoder();
-    const firstResult = results[0];
-    
-    let decoded: any;
-    if (typeof firstResult === 'string') {
-      // Raw hex format
+    if (typeof record === 'string') {
       decoded = abiCoder.decode(
         ['bytes32', 'bytes32', 'string', 'string', 'uint256', 'string', 'bytes32', 'uint64'],
-        firstResult
+        record
       );
-    } else if (Array.isArray(firstResult)) {
-      // Already decoded format
-      decoded = firstResult.map((item: any) => item?.value?.value || item?.value || item);
+    } else if (Array.isArray(record)) {
+      decoded = record.map((item: any) => item?.value?.value || item?.value || item);
+    } else if (record && typeof record === 'object' && 'data' in record) {
+      decoded = abiCoder.decode(
+        ['bytes32', 'bytes32', 'string', 'string', 'uint256', 'string', 'bytes32', 'uint64'],
+        (record as any).data
+      );
     } else {
-      console.error('Unexpected data format:', typeof firstResult);
       return null;
     }
-
-    const transferRecord: TransferRecord = {
+    
+    return {
       fromPhoneHash: decoded[0] as `0x${string}`,
       toPhoneHash: decoded[1] as `0x${string}`,
       fromPhone: decoded[2] as string,
@@ -127,55 +109,47 @@ export async function queryTransferByTxHash(
       txHash: decoded[6] as `0x${string}`,
       timestamp: decoded[7] as bigint
     };
-
-    console.log('✅ Transfer record retrieved from data stream:');
-    console.log(`   From: ${transferRecord.fromPhone}`);
-    console.log(`   To: ${transferRecord.toPhone}`);
-    console.log(`   Amount: ${transferRecord.amount.toString()} ${transferRecord.token}`);
-    console.log(`   Timestamp: ${new Date(Number(transferRecord.timestamp) * 1000).toISOString()}`);
-
-    return transferRecord;
-  } catch (error: any) {
-    console.error('❌ Failed to query transfer record:', error.message);
+  } catch (error) {
     return null;
   }
 }
 
 /**
- * Complete example: Subscribe to TransferConfirmed event and query data stream
+ * Format amount from Wei to readable string
+ * Handles both native tokens (SOMI, STT, ETH) and ERC-20 tokens
  * 
- * This shows the full event → data stream reference flow:
- * 1. Subscribe to TransferConfirmed events
- * 2. Extract txHash from event data
- * 3. Use txHash to query transferHistory data stream
- * 4. Get full transfer details including timestamp
+ * @param amountWei - Amount in Wei (bigint)
+ * @param token - Token symbol (e.g., "STT", "SOMI", "ETH")
+ * @returns Formatted amount string
  */
-export async function subscribeAndQueryTransferHistory() {
-  // This is an example - actual subscription would be in a subscriber service
-  console.log(`
-📡 Event → Data Stream Reference Pattern:
-
-1. Subscribe to TransferConfirmed event:
-   sdk.streams.subscribe({
-     somniaStreamsEventId: 'TransferConfirmed',
-     onData: async (event) => {
-       // 2. Extract txHash from event data
-       const txHash = extractTxHashFromEvent(event.data);
-       
-       // 3. Query data stream using txHash
-       const transferRecord = await queryTransferByTxHash(txHash);
-       
-       // 4. Now you have full transfer details + timestamp
-       console.log('Transfer:', transferRecord);
-     }
-   });
-
-🔗 Reference Chain:
-   Event (TransferConfirmed) 
-     → Contains: txHash in data field
-     → Use txHash as key
-     → Query: getByKey('transferHistory', publisher, txHash)
-     → Returns: Full transfer record with timestamp
-  `);
+export function formatAmount(amountWei: bigint, token: string): string {
+  try {
+    const amount = formatEther(amountWei);
+    const num = parseFloat(amount);
+    
+    // Format based on amount size
+    if (num < 0.0001) {
+      return `${amount} ${token}`;
+    } else if (num < 1) {
+      return `${num.toFixed(4)} ${token}`;
+    } else {
+      return `${num.toFixed(2)} ${token}`;
+    }
+  } catch (error) {
+    // Fallback: try formatUnits with 18 decimals
+    try {
+      const formatted = formatUnits(amountWei, 18);
+      const num = parseFloat(formatted);
+      if (num < 0.0001) {
+        return `${formatted} ${token}`;
+      } else if (num < 1) {
+        return `${num.toFixed(4)} ${token}`;
+      } else {
+        return `${num.toFixed(2)} ${token}`;
+      }
+    } catch {
+      return `${amountWei.toString()} ${token}`;
+    }
+  }
 }
 
