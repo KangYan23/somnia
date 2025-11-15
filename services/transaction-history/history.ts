@@ -2,17 +2,16 @@
 /**
  * Transaction History Service
  * 
- * Queries recent transactions from TransferConfirmed events
+ * Queries recent transactions from transferHistory data stream
+ * This showcases data stream query functionality using getAllPublisherDataForSchema
  * Supports querying by:
  * - Phone hash (for WhatsApp bot)
  * - Wallet address (for website - gets phone from userRegistration first)
  */
 
-import { sdk, publicClient } from '../../src/lib/somnia';
+import { sdk } from '../../src/lib/somnia';
 import { hashPhone, normalizePhone } from '../../src/lib/phone';
-import { TransferRecord, formatAmount, TRANSFER_EVENT_SIGNATURES, decodeUserRegistration, decodeTransferRecord } from '../../src/lib/transaction';
-import { decodeAbiParameters, keccak256, toBytes } from 'viem';
-import type { Hex } from 'viem';
+import { TransferRecord, formatAmount, decodeUserRegistration, decodeTransferRecord } from '../../src/lib/transaction';
 
 export interface TransactionHistoryOptions {
   phoneHash?: `0x${string}`;
@@ -79,7 +78,10 @@ export async function getPhoneHashFromWallet(walletAddress: `0x${string}`): Prom
 }
 
 /**
- * Query recent transactions by phone hash from data stream
+ * Query recent transactions by phone hash from transferHistory data stream
+ * 
+ * This showcases the data stream query functionality by using getAllPublisherDataForSchema
+ * to retrieve all transfer records, then filtering by phone hash.
  * 
  * IMPORTANT: getByKey() returns Hex[] | SchemaDecodedItem[][] | null
  * - The array format is the data structure (one record = one array element)
@@ -89,10 +91,7 @@ export async function getPhoneHashFromWallet(walletAddress: `0x${string}`): Prom
  * Therefore, we must use getAllPublisherDataForSchema() to get ALL records,
  * then filter by phone hash to find all transactions (not just the latest).
  * 
- * This is still faster than querying events because:
- * - Data stream queries are optimized by the SDK
- * - No need to query blockchain event logs
- * - Filtering in memory is fast
+ * This showcases data stream queries which are optimized by the SDK.
  */
 async function queryTransactionsByPhoneHash(
   phoneHash: `0x${string}`,
@@ -118,11 +117,7 @@ async function queryTransactionsByPhoneHash(
     console.log(`   Publisher: ${publisher}`);
     console.log(`   Method: getAllPublisherDataForSchema() then filter by phone hash`);
     
-    // Why we can't use getByKey() directly:
-    // 1. Keys are composite: phoneHash + txHash (e.g., '0xabcd...1234...')
-    // 2. getByKey() requires EXACT key match - no partial/prefix matching
-    // 3. We don't know the txHash when querying, so we can't construct the full key
-    // 4. Therefore, we must get ALL records and filter by phone hash in the data
+    //    This showcases data stream querying capabilities
     const allRecords = await sdk.streams.getAllPublisherDataForSchema(
       schemaId as `0x${string}`,
       publisher as `0x${string}`
@@ -170,88 +165,6 @@ async function queryTransactionsByPhoneHash(
 
   } catch (error: any) {
     console.error('Failed to query transactions from data stream:', error.message);
-    console.error('   Falling back to event query...');
-    // Fallback to event query if data stream fails
-    return queryTransactionsByPhoneHashFromEvents(phoneHash, limit);
-  }
-}
-
-/**
- * Fallback: Query transactions from TransferConfirmed events
- * Used when data stream query fails
- */
-async function queryTransactionsByPhoneHashFromEvents(
-  phoneHash: `0x${string}`,
-  limit: number = 10
-): Promise<TransferRecord[]> {
-  try {
-    console.log(`🔍 Fallback: Querying TransferConfirmed events for phone hash: ${phoneHash}`);
-    
-    const protocolInfo = await sdk.streams.getSomniaDataStreamsProtocolInfo();
-    if (!protocolInfo || typeof protocolInfo !== 'object' || !('contractAddress' in protocolInfo)) {
-      console.error('❌ Could not get Somnia Streams protocol contract address');
-      return [];
-    }
-
-    const contractAddress = (protocolInfo as any).contractAddress as `0x${string}`;
-    const eventSignature = TRANSFER_EVENT_SIGNATURES.TransferConfirmed;
-    const eventTopic = keccak256(toBytes(eventSignature)) as `0x${string}`;
-    
-    // Use raw topics for getLogs (viem's type system is strict, so we use as any)
-    const logsFrom = await (publicClient as any).getLogs({
-      address: contractAddress,
-      topics: [eventTopic, phoneHash, null],
-      fromBlock: 'earliest',
-      toBlock: 'latest'
-    });
-
-    const logsTo = await (publicClient as any).getLogs({
-      address: contractAddress,
-      topics: [eventTopic, null, phoneHash],
-      fromBlock: 'earliest',
-      toBlock: 'latest'
-    });
-
-    const allLogs = [...logsFrom, ...logsTo];
-    const uniqueLogs = allLogs.filter((log, index, self) => 
-      index === self.findIndex((l) => l.transactionHash === log.transactionHash)
-    );
-
-    const transactions: TransferRecord[] = [];
-    
-    for (const log of uniqueLogs) {
-      try {
-        const fromPhoneHash = log.topics[1] as `0x${string}`;
-        const toPhoneHash = log.topics[2] as `0x${string}`;
-        const decoded = decodeAbiParameters(
-          [{ type: 'string' }, { type: 'string' }, { type: 'uint256' }, { type: 'string' }, { type: 'bytes32' }],
-          log.data as Hex
-        );
-        const block = await publicClient.getBlock({ blockNumber: log.blockNumber });
-
-        transactions.push({
-          fromPhoneHash,
-          toPhoneHash,
-          fromPhone: decoded[0] as string,
-          toPhone: decoded[1] as string,
-          amount: decoded[2] as bigint,
-          token: decoded[3] as string,
-          txHash: decoded[4] as `0x${string}`,
-          timestamp: BigInt(block.timestamp)
-        });
-      } catch (e: any) {
-        console.warn(`   ⚠️ Failed to decode event log:`, e.message);
-        continue;
-      }
-    }
-
-    transactions.sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
-    const result = transactions.slice(0, limit);
-    console.log(`✅ Found ${result.length} matching transactions from events (fallback)`);
-    return result;
-
-  } catch (error: any) {
-    console.error('Failed to query transactions from events:', error.message);
     return [];
   }
 }
