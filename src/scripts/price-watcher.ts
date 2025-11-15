@@ -41,7 +41,7 @@ async function main() {
         const price = await getSomniaPrice();
         console.log(`💰 Current SOMNIA price (USD): $${price.toFixed(6)}`);
 
-        // Use real wallet address to find your registered price thresholds
+        // Get price thresholds directly from SDK and process to get active ones
         const publisherAddress = (process.env.WALLET_ADDRESS || process.env.PUBLISHER_ADDRESS) as `0x${string}`;
         
         try {
@@ -52,13 +52,50 @@ async function main() {
             return;
           }
 
+          // Process all thresholds and group by phoneHash to get most recent
+          const phoneGroups: { [phoneHash: string]: any } = {};
+          
           for (const entry of all) {
             try {
-              // Access data by array position - handle both string and object formats
               const phoneHash = ((entry[0] as any)?.value?.value || entry[0]) as string;
               const tokenSymbol = ((entry[1] as any)?.value?.value || entry[1]) as string; 
-              const minPrice = Number((entry[2] as any)?.value?.value || entry[2]) / 1e18; // Convert from wei
-              const maxPrice = Number((entry[3] as any)?.value?.value || entry[3]) / 1e18; // Convert from wei
+              const minPriceWei = Number((entry[2] as any)?.value?.value || entry[2]);
+              const maxPriceWei = Number((entry[3] as any)?.value?.value || entry[3]);
+              const updatedAt = Number((entry[4] as any)?.value?.value || entry[4]);
+              
+              const minPrice = minPriceWei / 1e18; // Convert from wei to USD
+              const maxPrice = maxPriceWei / 1e18; // Convert from wei to USD
+              
+              // Skip invalid thresholds (very small values that would display as $0.000000)
+              if (minPrice < 0.000001 || maxPrice < 0.000001 || minPrice === maxPrice) {
+                console.log(`⚠️ Skipping invalid threshold: ${phoneHash?.slice(0, 10)}... (range: $${minPrice.toFixed(6)} - $${maxPrice.toFixed(6)})`);
+                continue;
+              }
+              
+              // Only keep the most recent threshold for each phone
+              if (!phoneGroups[phoneHash] || updatedAt > phoneGroups[phoneHash].updatedAt) {
+                phoneGroups[phoneHash] = {
+                  phoneHash,
+                  tokenSymbol,
+                  minPrice,
+                  maxPrice,
+                  updatedAt
+                };
+              }
+            } catch (entryError) {
+              console.error("❌ Error processing threshold entry:", entryError);
+            }
+          }
+
+          const activeThresholds = Object.values(phoneGroups);
+          console.log(`📊 Found ${activeThresholds.length} VALID price threshold(s) (excluding $0.00 ranges):`);
+
+          for (const threshold of activeThresholds) {
+            try {
+              const phoneHash = threshold.phoneHash;
+              const tokenSymbol = threshold.tokenSymbol; 
+              const minPrice = threshold.minPrice;
+              const maxPrice = threshold.maxPrice;
 
               console.log(`🔍 Checking: ${tokenSymbol} ${phoneHash?.slice(0, 10)}... Range: $${minPrice.toFixed(6)} - $${maxPrice.toFixed(6)}`);
 
@@ -66,29 +103,41 @@ async function main() {
                 console.log(`🚨 PRICE ALERT! ${tokenSymbol} price $${price.toFixed(6)} is outside range $${minPrice.toFixed(6)} - $${maxPrice.toFixed(6)}`);
                 console.log(`📱 Alert for: ${phoneHash.slice(0, 10)}...`);
 
-                await sdk.streams.emitEvents([
-                  {
-                    id: "PriceAlert",
-                    argumentTopics: [phoneHash as `0x${string}`],
-                    data: encodeAbiParameters(
-                      [
-                        { type: "uint256", name: "currentPrice" },
-                        { type: "uint256", name: "minPrice" },
-                        { type: "uint256", name: "maxPrice" },
-                        { type: "string", name: "tokenSymbol" }
-                      ],
-                      [
-                        BigInt(Math.floor(price * 1e18)),
-                        BigInt(Math.floor(minPrice * 1e18)),
-                        BigInt(Math.floor(maxPrice * 1e18)),
-                        tokenSymbol
-                      ]
-                    ),
+                try {
+                  await sdk.streams.emitEvents([
+                    {
+                      id: "PriceAlert",
+                      argumentTopics: [phoneHash as `0x${string}`],
+                      data: encodeAbiParameters(
+                        [
+                          { type: "uint256", name: "currentPrice" },
+                          { type: "uint256", name: "minPrice" },
+                          { type: "uint256", name: "maxPrice" },
+                          { type: "string", name: "tokenSymbol" }
+                        ],
+                        [
+                          BigInt(Math.floor(price * 1e18)),
+                          BigInt(Math.floor(minPrice * 1e18)),
+                          BigInt(Math.floor(maxPrice * 1e18)),
+                          tokenSymbol
+                        ]
+                      ),
+                    }
+                  ]);
+                  console.log("✅ Price alert event emitted successfully!");
+                } catch (emitError) {
+                  // Skip nonce-related errors for duplicate transactions
+                  if (emitError instanceof Error && emitError.message.includes("nonce too low")) {
+                    console.log("⚠️ Duplicate transaction detected - skipping (this is normal)");
+                  } else {
+                    console.error("⚠️ Failed to emit price alert event (continuing monitoring):", emitError);
                   }
-                ]);
+                }
+              } else {
+                console.log(`✅ Price is within range - no alert needed.`);
               }
-            } catch (entryError) {
-              console.error("❌ Error processing threshold entry:", entryError);
+            } catch (thresholdError) {
+              console.error("❌ Error processing threshold:", thresholdError);
             }
           }
         } catch (sdkError) {

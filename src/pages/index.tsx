@@ -45,6 +45,10 @@ export default function Home() {
   const [minPrice, setMinPrice] = useState<number>(100);
   const [maxPrice, setMaxPrice] = useState<number>(200);
   const [priceThresholdStatus, setPriceThresholdStatus] = useState('');
+  
+  // Active price thresholds management
+  const [activeThresholds, setActiveThresholds] = useState<any[]>([]);
+  const [showActiveThresholds, setShowActiveThresholds] = useState(false);
 
   async function connectWallet() {
     if (typeof window === 'undefined' || !(window as any).ethereum) {
@@ -147,11 +151,64 @@ export default function Home() {
       
       if (result.ok) {
         setPriceThresholdStatus(`✅ Price threshold set! TX: ${result.tx}`);
+        // Refresh active thresholds after setting new one
+        loadActiveThresholds();
       } else {
         setPriceThresholdStatus(`❌ Error: ${result.error}`);
       }
     } catch (error) {
       setPriceThresholdStatus(`❌ Failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Load active price thresholds for the current wallet
+  async function loadActiveThresholds() {
+    try {
+      // Get publisher address
+      const publisherRes = await fetch('/api/get-publisher');
+      const publisherData = await publisherRes.json();
+      
+      if (publisherData.error) {
+        console.error('Failed to get publisher address:', publisherData.error);
+        return;
+      }
+      
+      // Query all price thresholds
+      const res = await fetch('/api/query-datastream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schemaName: 'priceThreshold',
+          publisher: publisherData.publisherAddress,
+          dataId: '' // Get all records
+        })
+      });
+      
+      const result = await res.json();
+      
+      if (result.found && result.results) {
+        // Sort by updatedAt to show most recent first
+        const sorted = result.results.sort((a: any, b: any) => {
+          const aTime = Number(a.updatedAt || 0);
+          const bTime = Number(b.updatedAt || 0);
+          return bTime - aTime;
+        });
+        
+        // Convert wei to USD and format
+        const formatted = sorted.map((item: any) => ({
+          ...item,
+          minPriceUSD: (Number(item.minPrice || 0) / 1e18).toFixed(6),
+          maxPriceUSD: (Number(item.maxPrice || 0) / 1e18).toFixed(6),
+          updatedAtISO: new Date(Number(item.updatedAt || 0)).toISOString()
+        }));
+        
+        setActiveThresholds(formatted);
+      } else {
+        setActiveThresholds([]);
+      }
+    } catch (error) {
+      console.error('Error loading active thresholds:', error);
+      setActiveThresholds([]);
     }
   }
 
@@ -407,6 +464,61 @@ export default function Home() {
       {priceThresholdStatus && (
         <div style={{ marginTop: 12, padding: 12, background: '#f0f8ff', borderRadius: 4 }}>
           {priceThresholdStatus}
+        </div>
+      )}
+
+      <hr style={{ margin: '2rem 0' }} />
+
+      <h2>📊 Active Price Thresholds</h2>
+      <p>View and manage all your active price monitoring thresholds:</p>
+      
+      <div style={{ marginBottom: 12 }}>
+        <button onClick={() => { loadActiveThresholds(); setShowActiveThresholds(!showActiveThresholds); }}>
+          {showActiveThresholds ? 'Hide' : 'Show'} Active Thresholds ({activeThresholds.length})
+        </button>
+      </div>
+
+      {showActiveThresholds && (
+        <div style={{ marginTop: 12, padding: 12, background: '#f9f9f9', borderRadius: 4 }}>
+          {activeThresholds.length === 0 ? (
+            <div style={{ color: '#666', fontStyle: 'italic' }}>
+              No active price thresholds found. Set some price alerts above!
+            </div>
+          ) : (
+            <div>
+              <h4>Your Active Price Monitoring ({activeThresholds.length} total):</h4>
+              {activeThresholds.map((threshold: any, idx: number) => (
+                <div key={idx} style={{ 
+                  marginTop: 8, 
+                  padding: 12, 
+                  background: idx === 0 ? '#e8f5e8' : 'white', 
+                  border: idx === 0 ? '2px solid #00aa00' : '1px solid #ddd',
+                  borderRadius: 4 
+                }}>
+                  {idx === 0 && <div style={{ color: '#00aa00', fontWeight: 'bold', fontSize: '0.9em' }}>🎯 MOST RECENT (Active)</div>}
+                  <div style={{ marginTop: 4 }}>
+                    <strong>📱 Phone Hash:</strong> {threshold.phoneHash?.slice(0, 16)}...
+                  </div>
+                  <div><strong>🪙 Token:</strong> {threshold.tokenSymbol || 'STT'}</div>
+                  <div><strong>📉 Min Price:</strong> ${threshold.minPriceUSD} USD</div>
+                  <div><strong>📈 Max Price:</strong> ${threshold.maxPriceUSD} USD</div>
+                  <div><strong>🕒 Updated:</strong> {threshold.updatedAtISO}</div>
+                  {idx === 0 && (
+                    <div style={{ marginTop: 8, padding: 8, background: 'rgba(0, 170, 0, 0.1)', borderRadius: 4 }}>
+                      <strong>🚨 This is your ACTIVE threshold being monitored!</strong>
+                      <div style={{ fontSize: '0.9em', color: '#666' }}>
+                        Current SOMNIA price will be checked against this range every 10 seconds.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div style={{ marginTop: 12, fontSize: '0.9em', color: '#666' }}>
+                💡 <strong>Tip:</strong> The price monitoring system uses your most recent threshold (green box above).
+                Old thresholds are kept for history but not actively monitored.
+              </div>
+            </div>
+          )}
         </div>
       )}
 
