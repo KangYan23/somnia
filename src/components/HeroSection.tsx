@@ -71,12 +71,12 @@ export default function HeroSection({
           </div>
 
           {/* Phone number input */}
-          <inputcard
+          <input
             placeholder="+60123456789"
             className="wallet-input"
             type="tel"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e: { target: { value: string; }; }) => setPhone(e.target.value)}
           />
           <span className="wallet-help">
             Enter your phone number in international format (E.164)
