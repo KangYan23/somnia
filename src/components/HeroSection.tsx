@@ -1,6 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 
 interface HeroSectionProps {
   onSubmit: () => void;
@@ -16,6 +26,25 @@ export default function HeroSection({
   status,
 }: HeroSectionProps) {
   const { address, isConnected } = useAccount();
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+
+  const handleRegisterClick = () => {
+    if (!isConnected || !address) {
+      setAlertTitle('Wallet Not Connected');
+      setAlertMessage('Please connect your wallet to continue.');
+      setAlertOpen(true);
+      return;
+    }
+    if (!phone || phone.trim() === '') {
+      setAlertTitle('Phone number required');
+      setAlertMessage('Please enter your phone number.');
+      setAlertOpen(true);
+      return;
+    }
+    onSubmit();
+  };
 
   return (
     <div
@@ -52,7 +81,7 @@ export default function HeroSection({
           <div className="wallet-card-title">Start by connecting your wallet and registering your number.</div>
 
           {/* RainbowKit Connect Button */}
-          <div className="flex justify-center w-full mb-4">
+          <div className="flex justify-center w-full mb-4 rainbowkit-connect-wrapper">
             <ConnectButton />
           </div>
 
@@ -88,12 +117,28 @@ export default function HeroSection({
 
           {/* Register button */}
           <button
-            onClick={onSubmit}
+            onClick={handleRegisterClick}
             className="wallet-btn wallet-btn-full wallet-btn-secondary"
-            disabled={!isConnected || !address}
           >
             Register Phone &amp; Wallet
           </button>
+
+          {/* Alert Dialog */}
+          <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{alertTitle}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {alertMessage}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogAction onClick={() => setAlertOpen(false)}>
+                  Okay
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Status message */}
           {status && (
