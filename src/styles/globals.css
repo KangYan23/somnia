@@ -662,6 +662,92 @@ select:focus {
 }
 
 /* Input */
+/* Wave group for animated input */
+.wave-group {
+  position: relative;
+  width: 440px;
+}
+
+.wave-group .wallet-input {
+  width: 440px;
+  min-height: 50px;
+  color: #111827;
+  outline: none;
+  padding: 10px 10px 10px 5px;
+  background-color: transparent;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid #515151;
+  box-shadow: none;
+  font-size: 16px;
+  display: block;
+}
+
+.wave-group .wallet-input:focus {
+  transform: none;
+  border: none;
+  border-bottom: 1px solid #515151;
+  box-shadow: none;
+  color: #111827;
+}
+
+.wave-group .label {
+  color: #999;
+  font-size: 18px;
+  font-weight: normal;
+  position: absolute;
+  pointer-events: none;
+  left: 5px;
+  top: 10px;
+  display: flex;
+}
+
+.wave-group .label-char {
+  transition: 0.2s ease all;
+  transition-delay: calc(var(--index) * 0.05s);
+  white-space: pre;
+}
+
+.wave-group .wallet-input:focus ~ .label .label-char,
+.wave-group .wallet-input:valid ~ .label .label-char {
+  transform: translateY(-20px);
+  font-size: 14px;
+  color: oklch(84.5% 0.143 164.978);
+}
+
+.wave-group .bar {
+  position: relative;
+  display: block;
+  width: 440px;
+}
+
+.wave-group .bar:before,
+.wave-group .bar:after {
+  content: '';
+  height: 2px;
+  width: 0;
+  bottom: 1px;
+  position: absolute;
+  background: oklch(84.5% 0.143 164.978);
+  transition: 0.2s ease all;
+  -moz-transition: 0.2s ease all;
+  -webkit-transition: 0.2s ease all;
+}
+
+.wave-group .bar:before {
+  left: 50%;
+}
+
+.wave-group .bar:after {
+  right: 50%;
+}
+
+.wave-group .wallet-input:focus ~ .bar:before,
+.wave-group .wallet-input:focus ~ .bar:after {
+  width: 50%;
+}
+
+/* Legacy wallet-input styles for non-wave-group usage */
 .wallet-input {
   width: 440px;
   min-height: 50px;
@@ -804,14 +890,67 @@ select:focus {
   top: 0.75rem;
 }
 
-/* Connected state - shows gradient, no hover effect */
+/* Connected state - shows gradient, still clickable for dropdown */
 .wallet-btn-connected {
   background: linear-gradient(to right, oklch(95% 0.052 163.051), oklch(87.1% 0.15 154.449));
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .wallet-btn-connected::before {
   display: none;
+}
+
+.wallet-btn-connected:hover {
+  opacity: 0.9;
+}
+
+/* Wallet Dropdown */
+.wallet-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  z-index: 1000;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  min-width: 200px;
+}
+
+.wallet-dropdown-item {
+  width: 100%;
+  padding: 12px 20px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  transition: background-color 0.2s ease;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wallet-dropdown-item:hover {
+  background-color: #f3f4f6;
+}
+
+.wallet-dropdown-item:not(:last-child) {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.wallet-dropdown-item-danger {
+  color: #dc2626;
+}
+
+.wallet-dropdown-item-danger:hover {
+  background-color: #fee2e2;
 }
 
 /* Status badges */
