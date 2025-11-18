@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import WavyBackground from '../components/WavyBackground';
 import HeroSection from '../components/HeroSection';
+import { ethers } from 'ethers';
 
 // Phone utility functions (client-side versions)
 function normalizePhone(raw: string) {
@@ -62,7 +63,7 @@ export default function Home() {
   try { await (window as any).ethereum.request?.({ method: 'eth_requestAccounts' }); } catch {}
   const signer = await provider.getSigner();
   const addr = await signer.getAddress();
-    setAddress(addr);
+    // The address from useAccount() hook will be automatically updated
   }
 
   async function submit() {
