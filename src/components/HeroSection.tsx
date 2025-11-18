@@ -1,22 +1,22 @@
 import React from 'react';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
 
 interface HeroSectionProps {
-  onConnectWallet: () => void;
   onSubmit: () => void;
-  address: string;
   phone: string;
   setPhone: (phone: string) => void;
   status: string;
 }
 
 export default function HeroSection({
-  onConnectWallet,
   onSubmit,
-  address,
   phone,
   setPhone,
   status,
 }: HeroSectionProps) {
+  const { address, isConnected } = useAccount();
+
   return (
     <div
       className="mb-8"
@@ -51,33 +51,37 @@ export default function HeroSection({
         <div className="wallet-card">
           <div className="wallet-card-title">Start by connecting your wallet and registering your number.</div>
 
-          {/* Connect Wallet */}
-          <button
-            onClick={onConnectWallet}
-            className={`wallet-btn wallet-btn-full ${address ? 'wallet-btn-connected' : ''}`}
-          >
-            {address ? 'Wallet Connected!' : 'Connect Wallet'}
-          </button>
-
-          <div className="wallet-connected-line">
-            <span className="label">Connected:</span>
-            {address ? (
-              <code className="addr">
-                {address}
-              </code>
-            ) : (
-              <span className="addr none">None</span>
-            )}
+          {/* RainbowKit Connect Button */}
+          <div className="flex justify-center w-full mb-4">
+            <ConnectButton />
           </div>
 
+
           {/* Phone number input */}
-          <input
-            placeholder="+60123456789"
-            className="wallet-input"
-            type="tel"
-            value={phone}
-            onChange={(e: { target: { value: string; }; }) => setPhone(e.target.value)}
-          />
+          <div className="wave-group">
+            <input
+              required
+              type="tel"
+              className="wallet-input"
+              value={phone}
+              onChange={(e: { target: { value: string; }; }) => setPhone(e.target.value)}
+            />
+            <span className="bar" />
+            <label className="label">
+              <span className="label-char" style={{ '--index': 0 } as React.CSSProperties}>P</span>
+              <span className="label-char" style={{ '--index': 1 } as React.CSSProperties}>h</span>
+              <span className="label-char" style={{ '--index': 2 } as React.CSSProperties}>o</span>
+              <span className="label-char" style={{ '--index': 3 } as React.CSSProperties}>n</span>
+              <span className="label-char" style={{ '--index': 4 } as React.CSSProperties}>e</span>
+              <span className="label-char" style={{ '--index': 5 } as React.CSSProperties}> </span>
+              <span className="label-char" style={{ '--index': 6 } as React.CSSProperties}>N</span>
+              <span className="label-char" style={{ '--index': 7 } as React.CSSProperties}>u</span>
+              <span className="label-char" style={{ '--index': 8 } as React.CSSProperties}>m</span>
+              <span className="label-char" style={{ '--index': 9 } as React.CSSProperties}>b</span>
+              <span className="label-char" style={{ '--index': 10 } as React.CSSProperties}>e</span>
+              <span className="label-char" style={{ '--index': 11 } as React.CSSProperties}>r</span>
+            </label>
+          </div>
           <span className="wallet-help">
             Enter your phone number in international format (E.164)
           </span>
@@ -86,6 +90,7 @@ export default function HeroSection({
           <button
             onClick={onSubmit}
             className="wallet-btn wallet-btn-full wallet-btn-secondary"
+            disabled={!isConnected || !address}
           >
             Register Phone &amp; Wallet
           </button>
