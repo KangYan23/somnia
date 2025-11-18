@@ -40,6 +40,30 @@ export default function Home() {
   const [phoneQuery, setPhoneQuery] = useState('');
   const [phoneQueryResult, setPhoneQueryResult] = useState<any>(null);
   const [publisherAddress, setPublisherAddress] = useState<string>('');
+  
+  // Price threshold state
+  const [priceThresholdPhone, setPriceThresholdPhone] = useState('');
+  const [tokenSymbol, setTokenSymbol] = useState('STT');
+  const [minPrice, setMinPrice] = useState<number>(100);
+  const [maxPrice, setMaxPrice] = useState<number>(200);
+  const [priceThresholdStatus, setPriceThresholdStatus] = useState('');
+  
+  // Active price thresholds management
+  const [activeThresholds, setActiveThresholds] = useState<any[]>([]);
+  const [showActiveThresholds, setShowActiveThresholds] = useState(false);
+
+  async function connectWallet() {
+    if (typeof window === 'undefined' || !(window as any).ethereum) {
+      return alert('Install MetaMask or WalletConnect');
+    }
+  // ethers v6: use BrowserProvider for injected wallets
+  const provider = new ethers.BrowserProvider((window as any).ethereum as any);
+  // request accounts (some providers automatically prompt on getSigner methods)
+  try { await (window as any).ethereum.request?.({ method: 'eth_requestAccounts' }); } catch {}
+  const signer = await provider.getSigner();
+  const addr = await signer.getAddress();
+    setAddress(addr);
+  }
 
   async function submit() {
     if (!address) return alert('Connect wallet first');
@@ -100,6 +124,96 @@ export default function Home() {
   }
 
   // New function: Query by phone number directly
+  async function registerPriceThreshold() {
+    if (!priceThresholdPhone) {
+      alert('Enter phone number for price threshold');
+      return;
+    }
+    
+    if (minPrice >= maxPrice) {
+      alert('Min price must be less than max price');
+      return;
+    }
+    
+    setPriceThresholdStatus('Setting price threshold...');
+    
+    try {
+      const res = await fetch('/api/register-price-threshold', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: priceThresholdPhone,
+          tokenSymbol,
+          minPrice,
+          maxPrice
+        })
+      });
+      
+      const result = await res.json();
+      
+      if (result.ok) {
+        setPriceThresholdStatus(`✅ Price threshold set! TX: ${result.tx}`);
+        // Refresh active thresholds after setting new one
+        loadActiveThresholds();
+      } else {
+        setPriceThresholdStatus(`❌ Error: ${result.error}`);
+      }
+    } catch (error) {
+      setPriceThresholdStatus(`❌ Failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Load active price thresholds for the current wallet
+  async function loadActiveThresholds() {
+    try {
+      // Get publisher address
+      const publisherRes = await fetch('/api/get-publisher');
+      const publisherData = await publisherRes.json();
+      
+      if (publisherData.error) {
+        console.error('Failed to get publisher address:', publisherData.error);
+        return;
+      }
+      
+      // Query all price thresholds
+      const res = await fetch('/api/query-datastream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schemaName: 'priceThreshold',
+          publisher: publisherData.publisherAddress,
+          dataId: '' // Get all records
+        })
+      });
+      
+      const result = await res.json();
+      
+      if (result.found && result.results) {
+        // Sort by updatedAt to show most recent first
+        const sorted = result.results.sort((a: any, b: any) => {
+          const aTime = Number(a.updatedAt || 0);
+          const bTime = Number(b.updatedAt || 0);
+          return bTime - aTime;
+        });
+        
+        // Convert wei to USD and format
+        const formatted = sorted.map((item: any) => ({
+          ...item,
+          minPriceUSD: (Number(item.minPrice || 0) / 1e18).toFixed(6),
+          maxPriceUSD: (Number(item.maxPrice || 0) / 1e18).toFixed(6),
+          updatedAtISO: new Date(Number(item.updatedAt || 0)).toISOString()
+        }));
+        
+        setActiveThresholds(formatted);
+      } else {
+        setActiveThresholds([]);
+      }
+    } catch (error) {
+      console.error('Error loading active thresholds:', error);
+      setActiveThresholds([]);
+    }
+  }
+
   async function queryByPhoneNumber() {
     console.log('🔍 Button clicked, starting phone query...');
     
@@ -148,6 +262,29 @@ export default function Home() {
       
       const result = await res.json();
       console.log('📥 API response:', result);
+      
+      // Also query for price thresholds
+      console.log('🔄 Querying price thresholds...');
+      let priceThreshold = null;
+      try {
+        const priceRes = await fetch('/api/query-price-threshold', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: phoneQuery,
+            publisher: envPublisher
+          })
+        });
+        const priceResult = await priceRes.json();
+        if (priceResult.found) {
+          priceThreshold = priceResult;
+          console.log('✅ Found price threshold:', priceThreshold);
+        } else {
+          console.log('❌ No price threshold found');
+        }
+      } catch (priceError) {
+        console.warn('⚠️ Price threshold query failed:', priceError);
+      }
       
       // If found, extract wallet address from the processed results
       if (result.found && result.results && result.results[0]) {
@@ -202,6 +339,7 @@ export default function Home() {
           registeredAt: registeredAtISO,
           metainfo,
           publisher: envPublisher,
+          priceThreshold,
           rawResult: result
         });
       } else {
@@ -288,6 +426,106 @@ export default function Home() {
               )}
             </div>
           )}
+
+      <hr style={{ margin: '2rem 0' }} />
+
+      <h2>💰 Set Price Threshold</h2>
+      <p>Set minimum and maximum price alerts for a phone number:</p>
+
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 8 }}>
+          <input 
+            value={priceThresholdPhone} 
+            onChange={e => setPriceThresholdPhone(e.target.value)} 
+            placeholder="+60123456789"
+            style={{ marginRight: 8, width: 200 }}
+          />
+          <input 
+            value={tokenSymbol} 
+            onChange={e => setTokenSymbol(e.target.value)} 
+            placeholder="Token Symbol"
+            style={{ marginRight: 8, width: 100 }}
+          />
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ marginRight: 8 }}>Min Price:</label>
+          <input 
+            type="number" 
+            value={minPrice} 
+            onChange={e => setMinPrice(Number(e.target.value))} 
+            style={{ marginRight: 16, width: 100 }}
+          />
+          <label style={{ marginRight: 8 }}>Max Price:</label>
+          <input 
+            type="number" 
+            value={maxPrice} 
+            onChange={e => setMaxPrice(Number(e.target.value))} 
+            style={{ width: 100 }}
+          />
+        </div>
+        <button onClick={registerPriceThreshold}>Set Price Threshold</button>
+      </div>
+
+      {priceThresholdStatus && (
+        <div style={{ marginTop: 12, padding: 12, background: '#f0f8ff', borderRadius: 4 }}>
+          {priceThresholdStatus}
+        </div>
+      )}
+
+      <hr style={{ margin: '2rem 0' }} />
+
+      <h2>📊 Active Price Thresholds</h2>
+      <p>View and manage all your active price monitoring thresholds:</p>
+      
+      <div style={{ marginBottom: 12 }}>
+        <button onClick={() => { loadActiveThresholds(); setShowActiveThresholds(!showActiveThresholds); }}>
+          {showActiveThresholds ? 'Hide' : 'Show'} Active Thresholds ({activeThresholds.length})
+        </button>
+      </div>
+
+      {showActiveThresholds && (
+        <div style={{ marginTop: 12, padding: 12, background: '#f9f9f9', borderRadius: 4 }}>
+          {activeThresholds.length === 0 ? (
+            <div style={{ color: '#666', fontStyle: 'italic' }}>
+              No active price thresholds found. Set some price alerts above!
+            </div>
+          ) : (
+            <div>
+              <h4>Your Active Price Monitoring ({activeThresholds.length} total):</h4>
+              {activeThresholds.map((threshold: any, idx: number) => (
+                <div key={idx} style={{ 
+                  marginTop: 8, 
+                  padding: 12, 
+                  background: idx === 0 ? '#e8f5e8' : 'white', 
+                  border: idx === 0 ? '2px solid #00aa00' : '1px solid #ddd',
+                  borderRadius: 4 
+                }}>
+                  {idx === 0 && <div style={{ color: '#00aa00', fontWeight: 'bold', fontSize: '0.9em' }}>🎯 MOST RECENT (Active)</div>}
+                  <div style={{ marginTop: 4 }}>
+                    <strong>📱 Phone Hash:</strong> {threshold.phoneHash?.slice(0, 16)}...
+                  </div>
+                  <div><strong>🪙 Token:</strong> {threshold.tokenSymbol || 'STT'}</div>
+                  <div><strong>📉 Min Price:</strong> ${threshold.minPriceUSD} USD</div>
+                  <div><strong>📈 Max Price:</strong> ${threshold.maxPriceUSD} USD</div>
+                  <div><strong>🕒 Updated:</strong> {threshold.updatedAtISO}</div>
+                  {idx === 0 && (
+                    <div style={{ marginTop: 8, padding: 8, background: 'rgba(0, 170, 0, 0.1)', borderRadius: 4 }}>
+                      <strong>🚨 This is your ACTIVE threshold being monitored!</strong>
+                      <div style={{ fontSize: '0.9em', color: '#666' }}>
+                        Current SOMNIA price will be checked against this range every 10 seconds.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div style={{ marginTop: 12, fontSize: '0.9em', color: '#666' }}>
+                💡 <strong>Tip:</strong> The price monitoring system uses your most recent threshold (green box above).
+                Old thresholds are kept for history but not actively monitored.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
         </div>
 
         <div className="card">
@@ -311,94 +549,92 @@ export default function Home() {
             </div>
           </div>
 
-          {phoneQueryResult && !phoneQueryResult.loading && (
-            <div className="mt-4">
-              {phoneQueryResult.error && (
-                <div className="alert alert-error">Error: {phoneQueryResult.error}</div>
-              )}
-              {!phoneQueryResult.error && !phoneQueryResult.found && (
-                <div className="alert alert-warning">
-                  <div>❌ No wallet found for {phoneQueryResult.phone}</div>
-                  <div className="text-sm text-muted mt-2">
-                    Phone Hash: <code>{phoneQueryResult.phoneHash}</code>
-                  </div>
+      {phoneQueryResult && !phoneQueryResult.loading && (
+        <div style={{ marginTop: 12, padding: 12, background: '#e8f5e8', borderRadius: 4 }}>
+          {phoneQueryResult.error && (
+            <div style={{ color: 'red' }}>Error: {phoneQueryResult.error}</div>
+          )}
+          {!phoneQueryResult.error && !phoneQueryResult.found && (
+            <div>
+              <div style={{ color: '#666' }}>❌ No wallet found for {phoneQueryResult.phone}</div>
+              <div style={{ fontSize: '0.85em', color: '#888', marginTop: 4 }}>
+                Phone Hash: {phoneQueryResult.phoneHash}
+              </div>
+            </div>
+          )}
+          {phoneQueryResult.found && (
+            <div>
+              <div style={{ marginBottom: 8 }}>
+                <strong>✅ Phone:</strong> {phoneQueryResult.phone}
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <strong>💰 Wallet Address:</strong> 
+                <code style={{ background: 'white', padding: '2px 6px', margin: '0 4px', borderRadius: 2 }}>
+                  {phoneQueryResult.walletAddress}
+                </code>
+              </div>
+              {phoneQueryResult.registeredAt && (
+                <div style={{ marginBottom: 8 }}>
+                  <strong>📅 Registered:</strong> {phoneQueryResult.registeredAt}
                 </div>
               )}
-              {phoneQueryResult.found && (
-                <div className="alert alert-success">
-                  <div className="mb-3">
-                    <strong>✅ Phone:</strong> {phoneQueryResult.phone}
-                  </div>
-                  <div className="mb-3">
-                    <strong>💰 Wallet Address:</strong>
-                    <br />
-                    <code className="text-primary text-sm">{phoneQueryResult.walletAddress}</code>
-                  </div>
-                  {phoneQueryResult.registeredAt && (
-                    <div className="mb-3">
-                      <strong>📅 Registered:</strong> {phoneQueryResult.registeredAt}
-                    </div>
-                  )}
-                  {phoneQueryResult.metainfo && (
-                    <div className="mb-3">
-                      <strong>ℹ️ Info:</strong> {phoneQueryResult.metainfo}
-                    </div>
-                  )}
-                  <details className="mt-4">
-                    <summary className="text-sm text-muted">Technical Details</summary>
-                    <div className="text-xs text-muted mt-2">
-                      <div>Phone Hash: <code>{phoneQueryResult.phoneHash}</code></div>
-                    </div>
-                  </details>
+              {phoneQueryResult.metainfo && (
+                <div style={{ marginBottom: 8 }}>
+                  <strong>ℹ️ Info:</strong> {phoneQueryResult.metainfo}
                 </div>
               )}
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ cursor: 'pointer', fontSize: '0.85em', color: '#666' }}>
+                  Technical Details
+                </summary>
+                <div style={{ fontSize: '0.8em', color: '#666', marginTop: 4 }}>
+                  <div>Phone Hash: {phoneQueryResult.phoneHash}</div>
+                </div>
+              </details>
             </div>
           )}
         </div>
+      )}
 
-        <div className="card">
-          <div className="card-header">
-            <h2 className="card-title mb-0">🛠️ Query Datastream</h2>
-            <p className="text-secondary">Advanced: Query data directly from the datastream using schema name, publisher address, and data ID</p>
-          </div>
+      <hr style={{ margin: '2rem 0' }} />
 
-          <div className="grid grid-cols-1 gap-4 mb-4">
-            <div className="form-group">
-              <label className="form-label">Schema Name</label>
-              <input 
-                value={datastreamQuery.schemaName}
-                onChange={e => setDatastreamQuery({...datastreamQuery, schemaName: e.target.value})}
-                placeholder="userRegistration"
-              />
-            </div>
-            
-            <div className="form-group">
-              <label className="form-label">Publisher Address</label>
-              <input 
-                value={datastreamQuery.publisher}
-                onChange={e => setDatastreamQuery({...datastreamQuery, publisher: e.target.value})}
-                placeholder="0x123...abc"
-              />
-            </div>
-            
-            <div className="form-group">
-              <label className="form-label">Data ID (Phone Hash)</label>
-              <input 
-                value={datastreamQuery.dataId}
-                onChange={e => setDatastreamQuery({...datastreamQuery, dataId: e.target.value})}
-                placeholder="0x456...def"
-              />
-            </div>
-          </div>
-          
-          <div className="flex gap-2 flex-wrap">
-            <button onClick={queryDatastream} className="btn-primary">
-              🔍 Query Datastream
-            </button>
-            <button onClick={queryDatastreamByPhone} className="btn-secondary">
-              📱 Auto-fill from Phone
-            </button>
-          </div>
+      <h2>Query Datastream</h2>
+      <p>Advanced: Query data directly from the datastream using schema name, publisher address, and data ID:</p>
+
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 8 }}>
+          <label>Schema Name:</label>
+          <input 
+            value={datastreamQuery.schemaName}
+            onChange={e => setDatastreamQuery({...datastreamQuery, schemaName: e.target.value})}
+            placeholder="userRegistration"
+            style={{ marginLeft: 8, width: 200 }}
+          />
+        </div>
+        
+        <div style={{ marginBottom: 8 }}>
+          <label>Publisher Address:</label>
+          <input 
+            value={datastreamQuery.publisher}
+            onChange={e => setDatastreamQuery({...datastreamQuery, publisher: e.target.value})}
+            placeholder="0x123...abc"
+            style={{ marginLeft: 8, width: 300 }}
+          />
+        </div>
+        
+        <div style={{ marginBottom: 8 }}>
+          <label>Data ID (Phone Hash):</label>
+          <input 
+            value={datastreamQuery.dataId}
+            onChange={e => setDatastreamQuery({...datastreamQuery, dataId: e.target.value})}
+            placeholder="0x456...def"
+            style={{ marginLeft: 8, width: 300 }}
+          />
+        </div>
+        
+        <button onClick={queryDatastream} style={{ marginRight: 8 }}>Query Datastream</button>
+        <button onClick={queryDatastreamByPhone}>Auto-fill from Phone</button>
+      </div>
 
           {datastreamResult && !datastreamResult.loading && (
             <div className="mt-4">
