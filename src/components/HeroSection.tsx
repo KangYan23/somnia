@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import {
@@ -30,15 +30,35 @@ export default function HeroSection({
   const [alertTitle, setAlertTitle] = useState('');
   const [alertMessage, setAlertMessage] = useState('');
 
+  // Show status messages in alert dialog
+  useEffect(() => {
+    if (status) {
+      if (status.includes('Error')) {
+        setAlertTitle('Error');
+        setAlertMessage(status);
+      } else if (status.includes('Registered!')) {
+        setAlertTitle('Registration successfully!');
+        // Extract transaction hash from status message
+        const txMatch = status.match(/tx:\s*([a-zA-Z0-9x]+)/);
+        const txHash = txMatch ? txMatch[1] : '';
+        setAlertMessage(`Phone hash: ${txHash}` || status);
+      } else {
+        setAlertTitle('Status');
+        setAlertMessage(status);
+      }
+      setAlertOpen(true);
+    }
+  }, [status]);
+
   const handleRegisterClick = () => {
     if (!isConnected || !address) {
-      setAlertTitle('Wallet Not Connected');
+      setAlertTitle('Wallet not connected!');
       setAlertMessage('Please connect your wallet to continue.');
       setAlertOpen(true);
       return;
     }
     if (!phone || phone.trim() === '') {
-      setAlertTitle('Phone number required');
+      setAlertTitle('Phone number required!');
       setAlertMessage('Please enter your phone number.');
       setAlertOpen(true);
       return;
@@ -81,7 +101,7 @@ export default function HeroSection({
           <div className="wallet-card-title">Start by connecting your wallet and registering your number.</div>
 
           {/* RainbowKit Connect Button */}
-          <div className="flex justify-center w-full mb-4 rainbowkit-connect-wrapper">
+          <div className="flex justify-center w-full mb-4">
             <ConnectButton />
           </div>
 
@@ -139,18 +159,6 @@ export default function HeroSection({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-
-          {/* Status message */}
-          {status && (
-            <div
-              className={
-                'wallet-status ' +
-                (status.includes('Error') ? 'wallet-status-error' : 'wallet-status-ok')
-              }
-            >
-              {status}
-            </div>
-          )}
         </div>
       </div>
     </div>
