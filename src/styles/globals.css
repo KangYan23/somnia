@@ -901,7 +901,7 @@ select:focus {
 
 .wallet-btn-secondary:hover {
   color: #fff;
-  background-color: #1A1A1A;
+  background-color: #000000;
   box-shadow: rgba(0, 0, 0, 0.25) 0 8px 15px;
   transform: translateY(-2px);
 }
@@ -1167,6 +1167,14 @@ button[data-radix-collection-item] {
   background-color: #000000 !important;
   color: #ffffff !important;
   border: none !important;
+}
+
+/* RainbowKit Connect Button Styling */
+button[data-testid="rk-connect-button"],
+div[data-testid="rk-connect-button"] button {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 1px solid #000000 !important;
 }
 
 /* RainbowKit ConnectButton - black background */
