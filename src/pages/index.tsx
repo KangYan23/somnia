@@ -1,6 +1,6 @@
 // src/pages/index.tsx
 import { useState } from 'react';
-import { ethers } from 'ethers';
+import { useAccount } from 'wagmi';
 import WavyBackground from '../components/WavyBackground';
 import HeroSection from '../components/HeroSection';
 
@@ -22,8 +22,8 @@ async function hashPhone(normalizedPhone: string) {
 }
 
 export default function Home() {
+  const { address } = useAccount();
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
   const [status, setStatus] = useState('');
   const [queryPhone, setQueryPhone] = useState('');
   const [queryResult, setQueryResult] = useState<any>(null);
@@ -40,19 +40,6 @@ export default function Home() {
   const [phoneQuery, setPhoneQuery] = useState('');
   const [phoneQueryResult, setPhoneQueryResult] = useState<any>(null);
   const [publisherAddress, setPublisherAddress] = useState<string>('');
-
-  async function connectWallet() {
-    if (typeof window === 'undefined' || !(window as any).ethereum) {
-      return alert('Install MetaMask or WalletConnect');
-    }
-  // ethers v6: use BrowserProvider for injected wallets
-  const provider = new ethers.BrowserProvider((window as any).ethereum as any);
-  // request accounts (some providers automatically prompt on getSigner methods)
-  try { await (window as any).ethereum.request?.({ method: 'eth_requestAccounts' }); } catch {}
-  const signer = await provider.getSigner();
-  const addr = await signer.getAddress();
-    setAddress(addr);
-  }
 
   async function submit() {
     if (!address) return alert('Connect wallet first');
@@ -243,9 +230,7 @@ export default function Home() {
       <div className="page-content">
         <div className="container">
           <HeroSection
-            onConnectWallet={connectWallet}
             onSubmit={submit}
-            address={address}
             phone={phone}
             setPhone={setPhone}
             status={status}
