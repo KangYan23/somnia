@@ -1,39 +1,12 @@
 // src/pages/transactions/[hash].tsx
+"use client"
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-
-interface Transaction {
-  fromPhone: string;
-  toPhone: string;
-  amount: string;
-  token: string;
-  txHash: string;
-  timestamp: number;
-  date: string;
-  direction: 'sent' | 'received';
-  counterparty: string;
-}
+import { DataTable } from "@/components/data-table/data-table"
+import { transactionColumns, Transaction } from "@/lib/transaction-columns"
 
 const EXPLORER_URL = process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER_URL || 'https://shannon-explorer.somnia.network';
-
-function getTxLink(txHash: string): string {
-  return `${EXPLORER_URL}/tx/${txHash}`;
-}
-
-function formatDate(timestamp: number): string {
-  return new Date(timestamp * 1000).toLocaleString();
-}
-
-function formatAmount(amount: string, token: string): string {
-  const num = parseFloat(amount) / 1e18; // Convert from Wei
-  if (num < 0.0001) {
-    return `${num} ${token}`;
-  } else if (num < 1) {
-    return `${num.toFixed(4)} ${token}`;
-  } else {
-    return `${num.toFixed(2)} ${token}`;
-  }
-}
 
 export default function TransactionHistoryPage() {
   const router = useRouter();
@@ -119,80 +92,14 @@ export default function TransactionHistoryPage() {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: '1rem' }}>
-          {transactions.map((tx, index) => (
-            <div
-              key={tx.txHash}
-              style={{
-                background: tx.direction === 'sent' ? '#fff5f5' : '#f0fff4',
-                border: `2px solid ${tx.direction === 'sent' ? '#fc8181' : '#68d391'}`,
-                borderRadius: '12px',
-                padding: '1.5rem',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '1.5rem' }}>
-                      {tx.direction === 'sent' ? '📤' : '📥'}
-                    </span>
-                    <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold' }}>
-                      {tx.direction === 'sent' ? 'Sent' : 'Received'}
-                    </h2>
-                  </div>
-                  <p style={{ margin: 0, color: '#666', fontSize: '0.9rem' }}>
-                    {tx.direction === 'sent' ? 'To' : 'From'}: <strong>{tx.counterparty || 'Unknown'}</strong>
-                  </p>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: tx.direction === 'sent' ? '#e53e3e' : '#38a169' }}>
-                    {tx.direction === 'sent' ? '-' : '+'}{formatAmount(tx.amount, tx.token)}
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: '#999', marginTop: '0.25rem' }}>
-                    {tx.token}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #ddd' }}>
-                <div>
-                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.25rem' }}>Transaction Hash</div>
-                  <a
-                    href={getTxLink(tx.txHash)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: '#3182ce',
-                      textDecoration: 'none',
-                      fontFamily: 'monospace',
-                      fontSize: '0.9rem',
-                      wordBreak: 'break-all'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                    onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
-                  >
-                    {tx.txHash.slice(0, 10)}...{tx.txHash.slice(-8)}
-                  </a>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.25rem' }}>Date & Time</div>
-                  <div style={{ fontSize: '0.9rem', color: '#333' }}>
-                    {formatDate(tx.timestamp)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div style={{ background: 'white', borderRadius: '8px', padding: '1.5rem' }}>
+          <DataTable
+            columns={transactionColumns}
+            data={transactions}
+            searchKey="counterparty"
+            searchPlaceholder="Search by counterparty..."
+            enableRowSelection={true}
+          />
         </div>
       )}
     </div>
