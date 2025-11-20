@@ -21,14 +21,22 @@ if (!/^0x[0-9a-fA-F]{64}$/.test(pkClean)) {
 
 const account = privateKeyToAccount(pkClean as `0x${string}`);
 
-const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(RPC_URL) });
-const walletClient = createWalletClient({ chain: somniaTestnet, account, transport: http(RPC_URL) });
+// Normalize the private key: accept with or without 0x, strip whitespace
+const pkClean = rawPrivateKey.trim().startsWith('0x') ? rawPrivateKey.trim().slice(2) : rawPrivateKey.trim();
+if (!/^[0-9a-fA-F]{64}$/.test(pkClean)) {
+  throw new Error(`Invalid PRIVATE_KEY in env: expected 32-byte hex (64 hex chars). Received: ${mask(rawPrivateKey)} (hex chars: ${pkClean.length})`);
+}
+const privateKey = (`0x${pkClean}`) as `0x${string}`;
+
+export const account = privateKeyToAccount(privateKey);
+
+const publicClient = createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) });
+export const walletClient = createWalletClient({ chain: somniaTestnet, account, transport: http(rpcUrl) });
 
 export const sdk = new SDK({
-  public: publicClient as any,
-  wallet: walletClient as any
+  public: createPublicClient({ chain: somniaTestnet, transport: http(rpcUrl) }),
+  wallet: createWalletClient({ chain: somniaTestnet, account, transport: http(rpcUrl) })
 });
-export { walletClient, account, publicClient };
 
 // If you want WebSocket subscription later, init a public websocket client similarly (for bot)
 export function createPublicWsClient(wsUrl: string) {

@@ -48,7 +48,7 @@ ACTION: price alert
 User says: "alert me when STT drops 10%"
 {
   "action": "price_alert",
-  "token": "STT",
+  "token": "SOMI",
   "direction": "drop",
   "threshold_percent": <number>
 }
@@ -58,6 +58,10 @@ IMPORTANT RULES:
 - For general questions: NO JSON, just answer naturally.
 - For actions: ALWAYS include a friendly message + JSON in triple backticks.
 - When user asks about balance (any variation), ALWAYS use check_balance action.
+Rules:
+- For general questions: NO JSON.
+- For actions: friendly message + JSON in triple backticks.
+- Use token symbol provided by the user; acceptable: SOMI (native) or STT (ERC-20 testnet).
 - Do NOT invent extra fields.
 - Token is optional for check_balance - if not mentioned, use "STT".
 - For transfer action: Token is REQUIRED. If user doesn't specify token, leave token field empty/null in JSON.

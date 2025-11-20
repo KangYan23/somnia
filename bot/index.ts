@@ -49,7 +49,7 @@ app.post("/webhook", async (req, res) => {
 
   // Ignore read / delivered status
   if (value?.statuses) {
-    console.log("↩️ Ignored: delivery/read status update");
+    console.log("↩ Ignored: delivery/read status update");
     return res.sendStatus(200);
   }
 
