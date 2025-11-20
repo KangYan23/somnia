@@ -1,16 +1,8 @@
 // lib/transaction-columns.tsx
 "use client"
 
-import { Column, ColumnDef } from "@tanstack/react-table"
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronsUpDown,
-  Check,
-  ExternalLink,
-  EyeOff,
-  MoreHorizontalIcon,
-} from "lucide-react"
+import { ColumnDef } from "@tanstack/react-table"
+import { ExternalLink, MoreHorizontalIcon } from "lucide-react"
 import Image from "next/image"
 
 import { Button } from "@/components/ui/button"
@@ -23,8 +15,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
-
 export interface Transaction {
   fromPhone: string
   toPhone: string
@@ -37,7 +27,9 @@ export interface Transaction {
   counterparty: string
 }
 
-const EXPLORER_URL = process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER_URL || 'https://shannon-explorer.somnia.network'
+const EXPLORER_URL =
+  process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER_URL ||
+  "https://shannon-explorer.somnia.network"
 
 function getTxLink(txHash: string): string {
   return `${EXPLORER_URL}/tx/${txHash}`
@@ -45,53 +37,61 @@ function getTxLink(txHash: string): string {
 
 function formatDate(timestamp: number): string {
   const date = new Date(timestamp * 1000)
-  return date.toLocaleDateString()
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
 }
 
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp * 1000)
-  return date.toLocaleTimeString()
+  return date.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }
 
-function formatAmount(amount: string, token: string): string {
+function formatReadableAmount(amount: string): string {
   const num = parseFloat(amount) / 1e18 // Convert from Wei
   if (num < 0.0001) {
-    return `${num} ${token}`
+    return `${num}`
   } else if (num < 1) {
-    return `${num.toFixed(4)} ${token}`
+    return `${num.toFixed(4)}`
   } else {
-    return `${num.toFixed(2)} ${token}`
+    return `${num.toFixed(2)}`
   }
 }
 
 export const transactionColumns: ColumnDef<Transaction>[] = [
   {
     accessorKey: "direction",
-    header: ({ column }) => <TypeColumnHeader column={column} />,
+    header: () => (
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Type
+      </div>
+    ),
     cell: ({ row }) => {
       const transaction = row.original
       const direction = transaction.direction
       const isSent = direction === "sent"
-      const amount = formatAmount(transaction.amount, transaction.token)
+      const amountValue = formatReadableAmount(transaction.amount)
       return (
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex items-center gap-3">
           <Image
             src={isSent ? "/sent.png" : "/received.png"}
             alt={isSent ? "Sent transaction" : "Received transaction"}
-            width={72}
-            height={24}
-            className="h-6 w-auto"
+            width={20}
+            height={20}
+            className="h-5 w-5"
           />
-          <div className="text-right">
-            <div
-              className={cn(
-                "text-sm font-semibold",
-                isSent ? "text-red-600" : "text-green-600"
-              )}
-            >
-              {isSent ? "-" : "+"}
-              {amount}
+          <div>
+            <div className="text-sm font-semibold text-slate-900">
+              {isSent ? "Sent" : "Received"}
             </div>
+            <p className="text-xs text-slate-500">
+              {transaction.token} · {isSent ? "Outgoing" : "Incoming"}
+            </p>
           </div>
         </div>
       )
@@ -103,65 +103,96 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
   {
     accessorKey: "counterparty",
     header: () => (
-      <div className="text-center font-medium">Counterparty</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Counterparty
+      </div>
     ),
     cell: ({ row }) => {
       const transaction = row.original
       return (
-        <div className="text-center">
-          <div className="font-medium">{transaction.counterparty || 'Unknown'}</div>
-          <div className="text-xs text-muted-foreground">
-            {transaction.direction === 'sent' ? 'To' : 'From'}
+        <div className="text-left">
+          <div className="text-sm font-medium text-slate-900">
+            {transaction.counterparty || "Unknown"}
+          </div>
+          <div className="text-xs uppercase tracking-wide text-slate-400">
+            {transaction.direction === "sent" ? "Recipient" : "Sender"}
           </div>
         </div>
       )
     },
   },
   {
+    accessorKey: "amount",
+    header: () => (
+      <div className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Amount
+      </div>
+    ),
+    cell: ({ row }) => {
+      const transaction = row.original
+      const isSent = transaction.direction === "sent"
+      const amountValue = formatReadableAmount(transaction.amount)
+      return (
+        <div className="text-right">
+          <div
+            className={cn(
+              "text-sm font-semibold",
+              isSent ? "text-rose-600" : "text-emerald-600"
+            )}
+          >
+            {isSent ? "-" : "+"}
+            {amountValue}
+          </div>
+          <div className="text-xs text-slate-500">{transaction.token}</div>
+        </div>
+      )
+    },
+  },
+  {
     accessorKey: "txHash",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Transaction Hash" />
+    header: () => (
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Hash
+      </div>
     ),
     cell: ({ row }) => {
       const txHash = row.getValue("txHash") as string
       return (
-        <a
-          href={getTxLink(txHash)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline font-mono text-sm"
-        >
-          {txHash.slice(0, 10)}...{txHash.slice(-8)}
-          <ExternalLink className="h-3 w-3" />
-        </a>
+        <div className="space-y-1">
+          <a
+            href={getTxLink(txHash)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-white"
+          >
+            <span className="font-mono text-[11px]">
+              {txHash.slice(0, 8)}...{txHash.slice(-6)}
+            </span>
+            <ExternalLink className="h-3.5 w-3.5 text-slate-500" />
+          </a>
+          <p className="text-[11px] uppercase tracking-wide text-slate-400">
+            Explorer
+          </p>
+        </div>
       )
     },
     enableSorting: false,
   },
   {
     accessorKey: "timestamp",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Date" />
+    header: () => (
+      <div className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Date &amp; Time
+      </div>
     ),
     cell: ({ row }) => {
       const timestamp = row.getValue("timestamp") as number
       return (
-        <div className="text-sm">
-          {formatDate(timestamp)}
-        </div>
-      )
-    },
-  },
-  {
-    id: "time",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Time" />
-    ),
-    cell: ({ row }) => {
-      const timestamp = row.getValue("timestamp") as number
-      return (
-        <div className="text-sm">
-          {formatTime(timestamp)}
+        <div className="text-right">
+          <div className="text-sm font-semibold text-slate-900">
+            {formatDate(timestamp)}
+          </div>
+          <div className="text-xs text-slate-500">{formatTime(timestamp)}</div>
         </div>
       )
     },
@@ -204,88 +235,4 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
     },
   },
 ]
-
-function TypeColumnHeader({
-  column,
-}: {
-  column: Column<Transaction, unknown>
-}) {
-  const currentFilter = column.getFilterValue() as string[] | undefined
-  const activeValue = currentFilter?.[0]
-
-  const handleSelect = (value: "sent" | "received") => {
-    if (activeValue === value) {
-      column.setFilterValue(undefined)
-      column.clearSorting?.()
-    } else {
-      column.setFilterValue([value])
-    }
-  }
-
-  return (
-    <div className="flex justify-center">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 h-8 data-[state=open]:bg-accent"
-          >
-            <span>Transaction</span>
-            {column.getIsSorted() === "desc" ? (
-              <ArrowDown className="ml-2 h-4 w-4" />
-            ) : column.getIsSorted() === "asc" ? (
-              <ArrowUp className="ml-2 h-4 w-4" />
-            ) : (
-              <ChevronsUpDown className="ml-2 h-4 w-4" />
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="center" className="w-40">
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              handleSelect("received")
-            }}
-            className="flex items-center justify-between"
-          >
-            <span className="flex items-center gap-2 text-foreground">
-              <span className="h-3 w-3 rounded-[25%] bg-green-500" />
-              Received
-            </span>
-            {activeValue === "received" && (
-              <Check className="h-4 w-4 text-green-600" />
-            )}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              handleSelect("sent")
-            }}
-            className="flex items-center justify-between"
-          >
-            <span className="flex items-center gap-2 text-foreground">
-              <span className="h-3 w-3 rounded-[25%] bg-red-500" />
-              Sent
-            </span>
-            {activeValue === "sent" && (
-              <Check className="h-4 w-4 text-red-600" />
-            )}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              column.toggleVisibility(false)
-            }}
-            className="flex items-center"
-          >
-            <EyeOff className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
-            Hide
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  )
-}
 
