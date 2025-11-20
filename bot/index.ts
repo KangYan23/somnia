@@ -6,7 +6,7 @@ import { routeAction } from "./router";
 import { normalizePhone } from "../src/lib/phone";
 import { startEventSubscribers } from "./subscriber";
 
-dotenv.config();
+dotenv.config({ path: '../.env' });
 
 const app = express();
 app.use(express.json());
@@ -136,7 +136,7 @@ app.post("/webhook", async (req, res) => {
 
   // Calculate final reply: use serviceReply if available, otherwise use cleaned aiResponse
   const finalReply = serviceReply || aiResponse.replace(/```(?:json)?\s*{[\s\S]*?}\s*```/g, "").trim();
-  
+
   // Skip sending message only if both serviceReply is null AND there's no aiResponse to send
   // (e.g., transfer completed, notifications sent via events, and no NLP response)
   if (serviceReply === null && !finalReply) {
@@ -178,7 +178,7 @@ app.listen(PORT, async () => {
   console.log(`🚀 WhatsApp bot running on port ${PORT}`);
   console.log(`VERIFY TOKEN = ${VERIFY_TOKEN}`);
   console.log('');
-  
+
   // Start event subscribers (for transfer notifications)
   console.log('📡 Starting event subscribers...');
   try {
