@@ -3,7 +3,7 @@
 
 import Image from "next/image"
 import { Activity, TrendingUp } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react"
 import { motion } from "framer-motion"
 import { useRouter } from "next/router"
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts"
@@ -69,6 +69,8 @@ type ChartRange = {
   granularity: "day" | "month"
   label: string
 }
+
+type ChartView = "both" | "income" | "expenses"
 
 function formatWeiToNumber(amount: string) {
   const parsed = parseFloat(amount)
@@ -291,6 +293,8 @@ export default function TransactionHistoryPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rangePreset, setRangePreset] = useState<RangePreset>("3m")
+  const [chartView, setChartView] = useState<ChartView>("both")
+  const [chartAnimationKey, setChartAnimationKey] = useState(0)
 
   useEffect(() => {
     if (!hash || typeof hash !== "string") {
@@ -324,6 +328,21 @@ export default function TransactionHistoryPage() {
 
     fetchTransactions()
   }, [hash])
+
+  const toggleChartView = (view: ChartView) => {
+    setChartView((prev) => (prev === view ? "both" : view))
+    setChartAnimationKey((key) => key + 1)
+  }
+
+  const handleStatCardKeyDown = (
+    event: KeyboardEvent<HTMLDivElement>,
+    view: ChartView
+  ) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      toggleChartView(view)
+    }
+  }
 
   const renderPage = (content: React.ReactNode) => (
     <div className="min-h-screen bg-slate-50 py-12">
@@ -385,6 +404,11 @@ export default function TransactionHistoryPage() {
       netFlow: Number((lastPoint.income - lastPoint.expenses).toFixed(2)),
     }
   }, [chartData])
+
+  const showIncomeLine = chartView !== "expenses"
+  const showExpenseLine = chartView !== "income"
+  const incomeCardActive = chartView === "income"
+  const expenseCardActive = chartView === "expenses"
 
   const transactionsInRange = useMemo(
     () =>
@@ -486,8 +510,9 @@ export default function TransactionHistoryPage() {
             },
           }}
         >
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <motion.div
+              className="group"
               variants={{
                 hidden: { opacity: 0, y: 16 },
                 visible: { opacity: 1, y: 0 },
@@ -511,9 +536,20 @@ export default function TransactionHistoryPage() {
                   />
                 }
                 amountColorClassName="text-emerald-600"
+                className={`cursor-pointer transform transition duration-200 hover:ring-1 hover:ring-slate-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:scale-105 ${
+                  incomeCardActive
+                    ? "border-emerald-400 bg-white shadow-lg ring-2 ring-emerald-200 scale-105"
+                    : "border border-transparent bg-gradient-to-b from-emerald-50/80 to-white shadow-sm group-hover:scale-105"
+                }`}
+                onClick={() => toggleChartView("income")}
+                onKeyDown={(event) => handleStatCardKeyDown(event, "income")}
+                role="button"
+                tabIndex={0}
+                aria-pressed={incomeCardActive}
               />
             </motion.div>
             <motion.div
+              className="group"
               variants={{
                 hidden: { opacity: 0, y: 16 },
                 visible: { opacity: 1, y: 0 },
@@ -537,10 +573,18 @@ export default function TransactionHistoryPage() {
                   />
                 }
                 amountColorClassName="text-rose-600"
+                className={`cursor-pointer transform transition duration-200 hover:ring-1 hover:ring-slate-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:scale-105 ${
+                  expenseCardActive
+                    ? "border-rose-400 bg-white shadow-lg ring-2 ring-rose-200 scale-105"
+                    : "border border-transparent bg-gradient-to-b from-rose-50/80 to-white shadow-sm group-hover:scale-105"
+                }`}
+                onClick={() => toggleChartView("expenses")}
+                onKeyDown={(event) => handleStatCardKeyDown(event, "expenses")}
+                role="button"
+                tabIndex={0}
+                aria-pressed={expenseCardActive}
               />
             </motion.div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
             <motion.div
               variants={{
                 hidden: { opacity: 0, y: 16 },
@@ -559,24 +603,12 @@ export default function TransactionHistoryPage() {
                 }
               />
             </motion.div>
-            <motion.div
-              variants={{
-                hidden: { opacity: 0, y: 16 },
-                visible: { opacity: 1, y: 0 },
-              }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-            >
-              <StatsCard
-                title="Transactions Recorded"
-                metric={transactionsInRange.length}
-                subtext="Within the selected range."
-                icon={<Activity className="h-6 w-6 text-slate-600" />}
-                decimalPlaces={0}
-                amountColorClassName="text-slate-900"
-              />
-            </motion.div>
           </div>
         </motion.div>
+        <p className="mt-3 text-xs text-slate-500">
+          Click Income or Expense to isolate that metric on the chart; click
+          again to reset to both.
+        </p>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="flex flex-col gap-4 pb-6">
@@ -588,7 +620,16 @@ export default function TransactionHistoryPage() {
                 <p className="text-xl font-semibold text-slate-900">
                   Income vs. Expenses
                 </p>
-                <p className="text-sm text-slate-500">{selectedRange.label}</p>
+                <p className="text-sm text-slate-500">
+                  {selectedRange.label}
+                  {chartView !== "both" && (
+                    <span className="text-xs font-semibold text-slate-400">
+                      {" "}
+                      · Showing{" "}
+                      {chartView === "income" ? "income" : "expenses"} only
+                    </span>
+                  )}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Select
@@ -618,61 +659,72 @@ export default function TransactionHistoryPage() {
               </div>
             </div>
           </div>
-          <ChartContainer config={chartConfig} className="h-64 w-full">
-            <LineChart
-              accessibilityLayer
-              data={chartData}
-              margin={{
-                left: 12,
-                right: 12,
-              }}
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="label"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-              />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    indicator="line"
-                    formatter={(value, name) => (
-                      <div className="flex w-full items-center justify-between">
-                        <span>
-                          {chartConfig[name as keyof typeof chartConfig]?.label ||
-                            name}
-                        </span>
-                        <span className="font-mono font-semibold">
-                          {Number(value).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
-                          {primaryToken}
-                        </span>
-                      </div>
-                    )}
+          <motion.div
+            key={chartAnimationKey}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+          >
+            <ChartContainer config={chartConfig} className="h-64 w-full">
+              <LineChart
+                accessibilityLayer
+                data={chartData}
+                margin={{
+                  left: 12,
+                  right: 12,
+                }}
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      indicator="line"
+                      formatter={(value, name) => (
+                        <div className="flex w-full items-center justify-between">
+                          <span>
+                            {chartConfig[name as keyof typeof chartConfig]
+                              ?.label || name}
+                          </span>
+                          <span className="font-mono font-semibold">
+                            {Number(value).toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            {primaryToken}
+                          </span>
+                        </div>
+                      )}
+                    />
+                  }
+                />
+                {showIncomeLine && (
+                  <Line
+                    dataKey="income"
+                    type="monotone"
+                    stroke="#059669"
+                    strokeWidth={2}
+                    dot={false}
                   />
-                }
-              />
-              <Line
-                dataKey="income"
-                type="monotone"
-                stroke="#059669"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                dataKey="expenses"
-                type="monotone"
-                stroke="#dc2626"
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ChartContainer>
+                )}
+                {showExpenseLine && (
+                  <Line
+                    dataKey="expenses"
+                    type="monotone"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                )}
+              </LineChart>
+            </ChartContainer>
+          </motion.div>
           <div className="mt-4 flex flex-wrap justify-center gap-6 border-t border-slate-100 pt-4">
             <div className="flex items-center gap-3">
               <Image
@@ -704,39 +756,7 @@ export default function TransactionHistoryPage() {
             </div>
           </div>
         </CardContent>
-        <CardFooter className="border-t border-slate-100 pt-6">
-          <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                <TrendingUp
-                  className={`h-5 w-5 ${
-                    trend.direction === "negative"
-                      ? "rotate-180 text-rose-500"
-                      : ""
-                  }`}
-                />
-              </div>
-              <div>
-                <p className="text-base font-semibold text-slate-900">
-                  {trend.direction === "negative"
-                    ? "Net outflow for the latest period"
-                    : "Net inflow for the latest period"}{" "}
-                  of {formatDisplayAmount(Math.abs(chartSummary.netFlow))}{" "}
-                  {primaryToken}
-                </p>
-                <p className="text-sm text-slate-500">
-                  {trend.direction === "negative"
-                    ? "Monitoring expenses can help rebalance cashflow."
-                    : "Keep the momentum going with consistent incoming funds."}
-                </p>
-              </div>
-            </div>
-            <div className="text-sm font-medium text-slate-600">
-              {trend.direction === "negative" ? "Trending down" : "Trending up"}{" "}
-              by {Math.abs(trend.percentage).toFixed(1)}% · {trend.message}
-            </div>
-          </div>
-        </CardFooter>
+        
       </Card>
 
       {transactions.length === 0 ? (
