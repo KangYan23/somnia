@@ -2,7 +2,7 @@
 "use client"
 
 import Image from "next/image"
-import { TrendingUp } from "lucide-react"
+import { Activity, TrendingUp } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/router"
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts"
@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { transactionColumns, Transaction } from "@/lib/transaction-columns"
+import { StatsCard } from "@/components/ui/activity-stats-card"
 
 const EXPLORER_URL =
   process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER_URL ||
@@ -470,82 +471,66 @@ export default function TransactionHistoryPage() {
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Total Income
-              </p>
-              <p className="text-2xl font-semibold text-slate-900">
-                {formatDisplayAmount(chartSummary.totalIncome)} {primaryToken}
-              </p>
-              <p className="text-xs text-slate-500">
-                Latest period: {formatDisplayAmount(chartSummary.latestIncome)}{" "}
-                {primaryToken}{" "}
-                <span
-                  className={
-                    chartSummary.incomeChange >= 0
-                      ? "text-emerald-600"
-                      : "text-rose-600"
-                  }
-                >
-                  ({chartSummary.incomeChange >= 0 ? "+" : ""}
-                  {chartSummary.incomeChange}%)
-                </span>
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Total Expenses
-              </p>
-              <p className="text-2xl font-semibold text-slate-900">
-                {formatDisplayAmount(chartSummary.totalExpenses)} {primaryToken}
-              </p>
-              <p className="text-xs text-slate-500">
-                Latest period: {formatDisplayAmount(chartSummary.latestExpenses)}{" "}
-                {primaryToken}{" "}
-                <span
-                  className={
-                    chartSummary.expenseChange <= 0
-                      ? "text-emerald-600"
-                      : "text-rose-600"
-                  }
-                >
-                  ({chartSummary.expenseChange >= 0 ? "+" : ""}
-                  {chartSummary.expenseChange}%)
-                </span>
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Net Flow (Latest Period)
-              </p>
-              <p
-                className={`text-2xl font-semibold ${
-                  chartSummary.netFlow >= 0
-                    ? "text-emerald-600"
-                    : "text-rose-600"
-                }`}
-              >
-                {chartSummary.netFlow >= 0 ? "+" : "-"}
-                {formatDisplayAmount(Math.abs(chartSummary.netFlow))}{" "}
-                {primaryToken}
-              </p>
-              <p className="text-xs text-slate-500">
-                Income minus expenses for the most recent period.
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Transactions Recorded
-              </p>
-              <p className="text-2xl font-semibold text-slate-900">
-                {transactionsInRange.length.toLocaleString()}
-              </p>
-              <p className="text-xs text-slate-500">
-                Within the selected range.
-              </p>
-            </div>
+        <div className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <StatsCard
+              title="Income"
+              metric={chartSummary.totalIncome}
+              metricUnit={primaryToken}
+              subtext={`Latest period: ${formatDisplayAmount(
+                chartSummary.latestIncome
+              )} ${primaryToken}`}
+              icon={
+                <Image
+                  src="/received.png"
+                  alt="Income"
+                  width={24}
+                  height={24}
+                  className="h-6 w-6"
+                />
+              }
+              amountColorClassName="text-emerald-600"
+            />
+            <StatsCard
+              title="Expense"
+              metric={chartSummary.totalExpenses}
+              metricUnit={primaryToken}
+              subtext={`Latest period: ${formatDisplayAmount(
+                chartSummary.latestExpenses
+              )} ${primaryToken}`}
+              icon={
+                <Image
+                  src="/sent.png"
+                  alt="Expenses"
+                  width={24}
+                  height={24}
+                  className="h-6 w-6"
+                />
+              }
+              amountColorClassName="text-rose-600"
+            />
           </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <StatsCard
+              title="Net Flow (Latest Period)"
+              metric={chartSummary.netFlow}
+              metricUnit={primaryToken}
+              subtext="Income minus expenses for the most recent period."
+              icon={<TrendingUp className="h-6 w-6 text-slate-600" />}
+              amountColorClassName={
+                chartSummary.netFlow >= 0 ? "text-emerald-600" : "text-rose-600"
+              }
+            />
+            <StatsCard
+              title="Transactions Recorded"
+              metric={transactionsInRange.length}
+              subtext="Within the selected range."
+              icon={<Activity className="h-6 w-6 text-slate-600" />}
+              decimalPlaces={0}
+              amountColorClassName="text-slate-900"
+            />
+          </div>
+        </div>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="flex flex-col gap-4 pb-6">
