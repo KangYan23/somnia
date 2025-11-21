@@ -4,6 +4,7 @@
 import Image from "next/image"
 import { Activity, TrendingUp } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
+import { motion } from "framer-motion"
 import { useRouter } from "next/router"
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts"
 
@@ -444,16 +445,16 @@ export default function TransactionHistoryPage() {
               <CardTitle className="text-3xl font-semibold text-slate-900">
                 Account Overview
               </CardTitle>
-              <a
+              <motion.a
                 href={`${EXPLORER_URL}/address/${hash}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-8 items-center rounded-sm border px-3 text-sm font-medium 
-                text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
-                
+                className="flex h-8 items-center rounded-sm border px-3 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
+                whileHover={{ scale: 1.04, y: -1 }}
+                transition={{ type: "spring", stiffness: 250, damping: 20 }}
               >
                 View on Explorer
-              </a>
+              </motion.a>
             </div>
             <p className="text-sm text-slate-500">
               Account Hash:{" "}
@@ -471,66 +472,111 @@ export default function TransactionHistoryPage() {
             </p>
           </div>
 
-        <div className="grid gap-4">
+        <motion.div
+          className="grid gap-4"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: {},
+            visible: {
+              transition: {
+                staggerChildren: 0.2,
+                delayChildren: 0.1,
+              },
+            },
+          }}
+        >
           <div className="grid gap-4 sm:grid-cols-2">
-            <StatsCard
-              title="Income"
-              metric={chartSummary.totalIncome}
-              metricUnit={primaryToken}
-              subtext={`Latest period: ${formatDisplayAmount(
-                chartSummary.latestIncome
-              )} ${primaryToken}`}
-              icon={
-                <Image
-                  src="/received.png"
-                  alt="Income"
-                  width={24}
-                  height={24}
-                  className="h-6 w-6"
-                />
-              }
-              amountColorClassName="text-emerald-600"
-            />
-            <StatsCard
-              title="Expense"
-              metric={chartSummary.totalExpenses}
-              metricUnit={primaryToken}
-              subtext={`Latest period: ${formatDisplayAmount(
-                chartSummary.latestExpenses
-              )} ${primaryToken}`}
-              icon={
-                <Image
-                  src="/sent.png"
-                  alt="Expenses"
-                  width={24}
-                  height={24}
-                  className="h-6 w-6"
-                />
-              }
-              amountColorClassName="text-rose-600"
-            />
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 16 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            >
+              <StatsCard
+                title="Income"
+                metric={chartSummary.totalIncome}
+                metricUnit={primaryToken}
+                subtext={`Latest period: ${formatDisplayAmount(
+                  chartSummary.latestIncome
+                )} ${primaryToken}`}
+                icon={
+                  <Image
+                    src="/received.png"
+                    alt="Income"
+                    width={24}
+                    height={24}
+                    className="h-6 w-6"
+                  />
+                }
+                amountColorClassName="text-emerald-600"
+              />
+            </motion.div>
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 16 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            >
+              <StatsCard
+                title="Expense"
+                metric={chartSummary.totalExpenses}
+                metricUnit={primaryToken}
+                subtext={`Latest period: ${formatDisplayAmount(
+                  chartSummary.latestExpenses
+                )} ${primaryToken}`}
+                icon={
+                  <Image
+                    src="/sent.png"
+                    alt="Expenses"
+                    width={24}
+                    height={24}
+                    className="h-6 w-6"
+                  />
+                }
+                amountColorClassName="text-rose-600"
+              />
+            </motion.div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <StatsCard
-              title="Net Flow (Latest Period)"
-              metric={chartSummary.netFlow}
-              metricUnit={primaryToken}
-              subtext="Income minus expenses for the most recent period."
-              icon={<TrendingUp className="h-6 w-6 text-slate-600" />}
-              amountColorClassName={
-                chartSummary.netFlow >= 0 ? "text-emerald-600" : "text-rose-600"
-              }
-            />
-            <StatsCard
-              title="Transactions Recorded"
-              metric={transactionsInRange.length}
-              subtext="Within the selected range."
-              icon={<Activity className="h-6 w-6 text-slate-600" />}
-              decimalPlaces={0}
-              amountColorClassName="text-slate-900"
-            />
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 16 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            >
+              <StatsCard
+                title="Net Flow (Latest Period)"
+                metric={chartSummary.netFlow}
+                metricUnit={primaryToken}
+                subtext="Income minus expenses for the most recent period."
+                icon={<TrendingUp className="h-6 w-6 text-slate-600" />}
+                amountColorClassName={
+                  chartSummary.netFlow >= 0 ? "text-emerald-600" : "text-rose-600"
+                }
+              />
+            </motion.div>
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 16 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            >
+              <StatsCard
+                title="Transactions Recorded"
+                metric={transactionsInRange.length}
+                subtext="Within the selected range."
+                icon={<Activity className="h-6 w-6 text-slate-600" />}
+                decimalPlaces={0}
+                amountColorClassName="text-slate-900"
+              />
+            </motion.div>
           </div>
-        </div>
+        </motion.div>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="flex flex-col gap-4 pb-6">
