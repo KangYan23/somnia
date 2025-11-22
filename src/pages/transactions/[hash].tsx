@@ -2,11 +2,11 @@
 "use client"
 
 import Image from "next/image"
-import { Activity, TrendingUp } from "lucide-react"
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react"
-import { motion } from "framer-motion"
+import { Activity, TrendingUp, Check, ArrowUp, ArrowDown, ExternalLink } from "lucide-react"
+import { useEffect, useMemo, useState, useRef, type KeyboardEvent } from "react"
+import { motion, animate } from "framer-motion"
 import { useRouter } from "next/router"
-import { CartesianGrid, Line, LineChart, XAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import { DataTable } from "@/components/data-table/data-table"
 import {
@@ -30,6 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
 import { transactionColumns, Transaction } from "@/lib/transaction-columns"
 import { StatsCard } from "@/components/ui/activity-stats-card"
 
@@ -295,6 +297,11 @@ export default function TransactionHistoryPage() {
   const [rangePreset, setRangePreset] = useState<RangePreset>("3m")
   const [chartView, setChartView] = useState<ChartView>("both")
   const [chartAnimationKey, setChartAnimationKey] = useState(0)
+  
+  // Refs for animated amount values
+  const incomeAmountRef = useRef<HTMLHeadingElement>(null)
+  const expenseAmountRef = useRef<HTMLHeadingElement>(null)
+  const netFlowAmountRef = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
     if (!hash || typeof hash !== "string") {
@@ -345,8 +352,8 @@ export default function TransactionHistoryPage() {
   }
 
   const renderPage = (content: React.ReactNode) => (
-    <div className="min-h-screen bg-slate-50 py-12">
-      <div className="mx-auto w-full max-w-5xl px-4">{content}</div>
+    <div className="min-h-screen bg-[#f0fdf4] py-8 px-4 sm:px-6 lg:px-8">
+      <div className="w-full">{content}</div>
     </div>
   )
 
@@ -405,6 +412,54 @@ export default function TransactionHistoryPage() {
     }
   }, [chartData])
 
+  // Animate income amount
+  useEffect(() => {
+    const node = incomeAmountRef.current
+    if (!node) return
+
+    const controls = animate(0, chartSummary.totalIncome, {
+      duration: 1.5,
+      ease: "easeOut",
+      onUpdate(value) {
+        node.textContent = formatDisplayAmount(value)
+      },
+    })
+
+    return () => controls.stop()
+  }, [chartSummary.totalIncome])
+
+  // Animate expense amount
+  useEffect(() => {
+    const node = expenseAmountRef.current
+    if (!node) return
+
+    const controls = animate(0, chartSummary.totalExpenses, {
+      duration: 1.5,
+      ease: "easeOut",
+      onUpdate(value) {
+        node.textContent = formatDisplayAmount(value)
+      },
+    })
+
+    return () => controls.stop()
+  }, [chartSummary.totalExpenses])
+
+  // Animate net flow amount
+  useEffect(() => {
+    const node = netFlowAmountRef.current
+    if (!node) return
+
+    const controls = animate(0, chartSummary.netFlow, {
+      duration: 1.5,
+      ease: "easeOut",
+      onUpdate(value) {
+        node.textContent = formatDisplayAmount(value)
+      },
+    })
+
+    return () => controls.stop()
+  }, [chartSummary.netFlow])
+
   const showIncomeLine = chartView !== "expenses"
   const showExpenseLine = chartView !== "income"
   const incomeCardActive = chartView === "income"
@@ -418,6 +473,82 @@ export default function TransactionHistoryPage() {
       }),
     [transactions, selectedRange]
   )
+
+  // Additional metrics for the expanded layout
+  const additionalMetrics = useMemo(() => {
+    if (transactionsInRange.length === 0) {
+      return {
+        totalTransactions: 0,
+        avgTransactionSize: 0,
+        largestTransaction: 0,
+        sentCount: 0,
+        receivedCount: 0,
+        velocityThisWeek: 0,
+        velocityLastWeek: 0,
+        totalVolume: 0,
+        tokenBreakdown: {} as Record<string, { count: number; total: number }>,
+      }
+    }
+
+    const sentTxs = transactionsInRange.filter((t) => t.direction === "sent")
+    const receivedTxs = transactionsInRange.filter((t) => t.direction === "received")
+    
+    const amounts = transactionsInRange.map((t) => formatWeiToNumber(t.amount))
+    const avgTransactionSize = amounts.reduce((sum, amt) => sum + amt, 0) / amounts.length
+    const largestTransaction = Math.max(...amounts)
+    const totalVolume = chartSummary.totalIncome + chartSummary.totalExpenses
+
+    // Calculate velocity (transactions this week vs last week)
+    const now = new Date()
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+    
+    const thisWeekTxs = transactions.filter((tx) => {
+      const txDate = new Date(tx.timestamp * 1000)
+      return txDate >= oneWeekAgo && txDate <= now
+    }).length
+
+    const lastWeekTxs = transactions.filter((tx) => {
+      const txDate = new Date(tx.timestamp * 1000)
+      return txDate >= twoWeeksAgo && txDate < oneWeekAgo
+    }).length
+
+    // Token breakdown
+    const tokenMap = new Map<string, { count: number; total: number }>()
+    transactionsInRange.forEach((tx) => {
+      const token = tx.token || "SOM"
+      const existing = tokenMap.get(token) || { count: 0, total: 0 }
+      tokenMap.set(token, {
+        count: existing.count + 1,
+        total: existing.total + formatWeiToNumber(tx.amount),
+      })
+    })
+    const tokenBreakdown = Object.fromEntries(tokenMap)
+
+    return {
+      totalTransactions: transactionsInRange.length,
+      avgTransactionSize: Number(avgTransactionSize.toFixed(2)),
+      largestTransaction: Number(largestTransaction.toFixed(2)),
+      sentCount: sentTxs.length,
+      receivedCount: receivedTxs.length,
+      velocityThisWeek: thisWeekTxs,
+      velocityLastWeek: lastWeekTxs,
+      totalVolume: Number(totalVolume.toFixed(2)),
+      tokenBreakdown,
+    }
+  }, [transactionsInRange, transactions, chartSummary])
+
+  // Calculate velocity change percentage
+  const velocityChange = useMemo(() => {
+    if (additionalMetrics.velocityLastWeek === 0) return 0
+    return ((additionalMetrics.velocityThisWeek - additionalMetrics.velocityLastWeek) / additionalMetrics.velocityLastWeek) * 100
+  }, [additionalMetrics])
+
+  // Calculate net flow percentage (for account health)
+  const netFlowPercentage = useMemo(() => {
+    if (additionalMetrics.totalVolume === 0) return 0
+    return (chartSummary.netFlow / additionalMetrics.totalVolume) * 100
+  }, [chartSummary.netFlow, additionalMetrics.totalVolume])
 
   if (!hash) {
     return renderPage(
@@ -458,204 +589,256 @@ export default function TransactionHistoryPage() {
     transactionsInRange[0]?.token || transactions[0]?.token || "SOM"
 
   return renderPage(
-    <div className="flex flex-col gap-6">
-      <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <CardHeader className="gap-6 pb-6">
-          <div className="flex flex-col gap-3">
-            <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Transaction History
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="text-3xl font-semibold text-slate-900">
-                Account Overview
-              </CardTitle>
-              <motion.a
-                href={`${EXPLORER_URL}/address/${hash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-8 items-center rounded-sm border px-3 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
-                whileHover={{ scale: 1.04, y: -1 }}
-                transition={{ type: "spring", stiffness: 250, damping: 20 }}
-              >
-                View on Explorer
-              </motion.a>
-            </div>
-            <p className="text-sm text-slate-500">
-              Account Hash:{" "}
-              <span className="font-mono text-slate-800">
-                {hash.slice(0, 12)}...{hash.slice(-10)}
-              </span>
-            </p>
-            <p className="text-sm text-slate-500">
-              Showing{" "}
-              <span className="font-semibold text-slate-900">
-                {transactionsInRange.length}
-              </span>{" "}
-              transaction{transactionsInRange.length !== 1 ? "s" : ""} in the
-              selected range.
-            </p>
+    <Card className="rounded-2xl border border-[#e2e8f0] bg-white px-8 py-8 shadow-lg gap-0 space-y-10">
+      {/* Header Section */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <div className="mb-2">
+            <Badge
+              variant="outline"
+              className="rounded-sm bg-[#dff5e1] border-transparent px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#15803d]"
+            >
+              <Activity className="h-3.5 w-3.5" />
+              Transaction Dashboard
+            </Badge>
           </div>
+          <h1 className="text-3xl font-bold tracking-tight text-[#111827]">
+            Account Analytics
+          </h1>
+          <p className="mt-2 text-sm text-[#4b5563]">
+            Account: <span className="font-mono font-medium text-[#374151]">{hash.slice(0, 12)}...{hash.slice(-10)}</span>
+          </p>
+        </div>
+        <motion.a
+          href={`${EXPLORER_URL}/address/${hash}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-9 items-center gap-2 rounded-lg bg-[#111827] px-4 text-sm font-semibold text-white transition hover:bg-[#1f2937] hover:shadow-md"
+          whileHover={{ scale: 1.02, y: -1 }}
+          transition={{ type: "spring", stiffness: 250, damping: 20 }}
+        >
+          <ExternalLink className="h-4 w-4" />
+          Explorer
+        </motion.a>
+      </div>
 
-        <motion.div
-          className="grid gap-4"
-          initial="hidden"
-          animate="visible"
-          variants={{
-            hidden: {},
-            visible: {
-              transition: {
-                staggerChildren: 0.2,
-                delayChildren: 0.1,
-              },
+      {/* SECTION 1: Top-Level Summary Cards (Four Key Metrics) */}
+      <motion.div
+        className="grid gap-6 md:grid-cols-2 lg:grid-cols-4"
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: {},
+          visible: {
+            transition: {
+              staggerChildren: 0.1,
+              delayChildren: 0.1,
             },
+          },
+        }}
+      >
+        {/* Card 1: Account Health/Net Flow */}
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0 },
+          }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => {
+            if (chartView !== "both") {
+              toggleChartView("both")
+            }
           }}
         >
-          <div className="grid gap-4 md:grid-cols-3">
-            <motion.div
-              className="group"
-              variants={{
-                hidden: { opacity: 0, y: 16 },
-                visible: { opacity: 1, y: 0 },
-              }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
+              Account Health
+            </p>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-3xl font-bold text-[#111827]">
+                {netFlowPercentage >= 0 ? "+" : ""}{netFlowPercentage.toFixed(1)}%
+              </h2>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className={`h-6 px-2.5 text-xs font-medium ${
+                chartSummary.netFlow >= 0
+                  ? "bg-[#dff5e1] text-[#15803d] border-[#16a34a]"
+                  : "bg-[#fee2e2] text-[#dc2626] border-[#dc2626]"
+              }`}
             >
-              <StatsCard
-                title="Income"
-                metric={chartSummary.totalIncome}
-                metricUnit={primaryToken}
-                subtext={`Latest period: ${formatDisplayAmount(
-                  chartSummary.latestIncome
-                )} ${primaryToken}`}
-                icon={
-                  <Image
-                    src="/received.png"
-                    alt="Income"
-                    width={24}
-                    height={24}
-                    className="h-6 w-6"
-                  />
-                }
-                amountColorClassName="text-emerald-600"
-                className={`cursor-pointer transform transition duration-200 hover:ring-1 hover:ring-slate-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:scale-105 ${
-                  incomeCardActive
-                    ? "border-emerald-400 bg-white shadow-lg ring-2 ring-emerald-200 scale-105"
-                    : "border border-transparent bg-gradient-to-b from-emerald-50/80 to-white shadow-sm group-hover:scale-105"
-                }`}
-                onClick={() => toggleChartView("income")}
-                onKeyDown={(event) => handleStatCardKeyDown(event, "income")}
-                role="button"
-                tabIndex={0}
-                aria-pressed={incomeCardActive}
-              />
-            </motion.div>
-            <motion.div
-              className="group"
-              variants={{
-                hidden: { opacity: 0, y: 16 },
-                visible: { opacity: 1, y: 0 },
-              }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-            >
-              <StatsCard
-                title="Expense"
-                metric={chartSummary.totalExpenses}
-                metricUnit={primaryToken}
-                subtext={`Latest period: ${formatDisplayAmount(
-                  chartSummary.latestExpenses
-                )} ${primaryToken}`}
-                icon={
-                  <Image
-                    src="/sent.png"
-                    alt="Expenses"
-                    width={24}
-                    height={24}
-                    className="h-6 w-6"
-                  />
-                }
-                amountColorClassName="text-rose-600"
-                className={`cursor-pointer transform transition duration-200 hover:ring-1 hover:ring-slate-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:scale-105 ${
-                  expenseCardActive
-                    ? "border-rose-400 bg-white shadow-lg ring-2 ring-rose-200 scale-105"
-                    : "border border-transparent bg-gradient-to-b from-rose-50/80 to-white shadow-sm group-hover:scale-105"
-                }`}
-                onClick={() => toggleChartView("expenses")}
-                onKeyDown={(event) => handleStatCardKeyDown(event, "expenses")}
-                role="button"
-                tabIndex={0}
-                aria-pressed={expenseCardActive}
-              />
-            </motion.div>
-            <motion.div
-              variants={{
-                hidden: { opacity: 0, y: 16 },
-                visible: { opacity: 1, y: 0 },
-              }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-            >
-              <StatsCard
-                title="Net Flow (Latest Period)"
-                metric={chartSummary.netFlow}
-                metricUnit={primaryToken}
-                subtext="Income minus expenses for the most recent period."
-                icon={<TrendingUp className="h-6 w-6 text-slate-600" />}
-                amountColorClassName={
-                  chartSummary.netFlow >= 0 ? "text-emerald-600" : "text-rose-600"
-                }
-              />
-            </motion.div>
+              {formatDisplayAmount(chartSummary.netFlow)} {primaryToken}
+            </Badge>
+            <span className="text-xs text-[#4b5563]">Net Flow</span>
           </div>
         </motion.div>
-        <p className="mt-3 text-xs text-slate-500">
-          Click Income or Expense to isolate that metric on the chart; click
-          again to reset to both.
-        </p>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex flex-col gap-4 pb-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+
+        {/* Card 2: Total Transactions */}
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0 },
+          }}
+          transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md"
+        >
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
+              Total Transactions
+            </p>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-3xl font-bold text-[#111827]">
+                {additionalMetrics.totalTransactions}
+              </h2>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className="h-6 border-[#e2e8f0] bg-[#f9fafb] px-2.5 text-xs font-medium text-[#374151]"
+            >
+              {additionalMetrics.sentCount} sent · {additionalMetrics.receivedCount} received
+            </Badge>
+          </div>
+        </motion.div>
+
+        {/* Card 3: Transaction Velocity */}
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0 },
+          }}
+          transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
+          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md"
+        >
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
+              This Week
+            </p>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-3xl font-bold text-[#111827]">
+                {additionalMetrics.velocityThisWeek}
+              </h2>
+              <span className="text-sm text-[#4b5563]">txns</span>
+            </div>
+          </div>
+          {velocityChange !== 0 && (
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className={`h-6 border-0 px-2.5 text-xs font-medium ${
+                  velocityChange >= 0
+                    ? "bg-[#dff5e1] text-[#15803d]"
+                    : "bg-[#fee2e2] text-[#dc2626]"
+                }`}
+              >
+                {velocityChange >= 0 ? (
+                  <ArrowUp className="h-3 w-3 inline mr-1" />
+                ) : (
+                  <ArrowDown className="h-3 w-3 inline mr-1" />
+                )}
+                {Math.abs(velocityChange).toFixed(1)}% vs last week
+              </Badge>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Card 4: Total Volume */}
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0 },
+          }}
+          transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
+          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md"
+        >
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
+              Total Volume
+            </p>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-3xl font-bold text-[#111827]">
+                {formatDisplayAmount(additionalMetrics.totalVolume)}
+              </h2>
+              <span className="text-sm text-[#4b5563]">{primaryToken}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className="h-6 border-[#e2e8f0] bg-[#f9fafb] px-2.5 text-xs font-medium text-[#374151]"
+            >
+              Income + Expenses
+            </Badge>
+          </div>
+        </motion.div>
+      </motion.div>
+
+      {/* SECTION 2: Main Analytics Section */}
+      <div className="flex flex-col gap-6 rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Cashflow
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563]">
+                  Cashflow Trend
                 </p>
-                <p className="text-xl font-semibold text-slate-900">
-                  Income vs. Expenses
-                </p>
-                <p className="text-sm text-slate-500">
-                  {selectedRange.label}
-                  {chartView !== "both" && (
-                    <span className="text-xs font-semibold text-slate-400">
-                      {" "}
-                      · Showing{" "}
-                      {chartView === "income" ? "income" : "expenses"} only
-                    </span>
-                  )}
-                </p>
+                <h2 className="text-2xl font-bold tracking-tight text-[#111827]">
+                  Income vs Expenses
+                </h2>
               </div>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={rangePreset}
-                  onValueChange={(value) => setRangePreset(value as RangePreset)}
+              <Select
+                value={rangePreset}
+                onValueChange={(value) => setRangePreset(value as RangePreset)}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="h-8 rounded-sm border border-[#e2e8f0] px-3 text-sm font-semibold bg-white hover:bg-[#f9fafb] data-[state=open]:bg-[#f9fafb]"
+                  aria-label="Select cashflow range"
                 >
-                  <SelectTrigger
-                    size="sm"
-                    className="h-8 rounded-sm border px-3 text-sm font-semibold data-[state=open]:bg-accent"
-                    aria-label="Select cashflow range"
-                  >
-                    <SelectValue placeholder="Last 3 months" />
-                  </SelectTrigger>
-                  <SelectContent
-                    align="end"
-                    position="popper"
-                    sideOffset={4}
-                    className="w-[180px] rounded-lg border border-slate-200 bg-white shadow-lg"
-                  >
-                    {RANGE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <SelectValue placeholder="Last 3 months" />
+                </SelectTrigger>
+                <SelectContent
+                  align="end"
+                  position="popper"
+                  sideOffset={4}
+                  className="w-[180px] rounded-lg border border-[#e2e8f0] bg-white shadow-lg"
+                >
+                  {RANGE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-[#4b5563]">
+                {selectedRange.label}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => toggleChartView("income")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                    chartView === "income"
+                      ? "bg-[#16a34a] text-white"
+                      : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
+                  }`}
+                >
+                  Income
+                </button>
+                <button
+                  onClick={() => toggleChartView("expenses")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                    chartView === "expenses"
+                      ? "bg-[#dc2626] text-white"
+                      : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
+                  }`}
+                >
+                  Expenses
+                </button>
               </div>
             </div>
           </div>
@@ -664,22 +847,32 @@ export default function TransactionHistoryPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
+            className="w-full"
           >
-            <ChartContainer config={chartConfig} className="h-64 w-full">
+            <ChartContainer config={chartConfig} className="h-80 w-full">
               <LineChart
                 accessibilityLayer
                 data={chartData}
                 margin={{
                   left: 12,
                   right: 12,
+                  top: 12,
+                  bottom: 12,
                 }}
               >
-                <CartesianGrid vertical={false} />
+                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
                   dataKey="label"
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
+                  tick={{ fill: "#4b5563", fontSize: 12 }}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tick={{ fill: "#4b5563", fontSize: 12 }}
                 />
                 <ChartTooltip
                   cursor={false}
@@ -708,8 +901,8 @@ export default function TransactionHistoryPage() {
                   <Line
                     dataKey="income"
                     type="monotone"
-                    stroke="#059669"
-                    strokeWidth={2}
+                    stroke="#16a34a"
+                    strokeWidth={2.5}
                     dot={false}
                   />
                 )}
@@ -718,67 +911,55 @@ export default function TransactionHistoryPage() {
                     dataKey="expenses"
                     type="monotone"
                     stroke="#dc2626"
-                    strokeWidth={2}
+                    strokeWidth={2.5}
                     dot={false}
                   />
                 )}
               </LineChart>
             </ChartContainer>
           </motion.div>
-          <div className="mt-4 flex flex-wrap justify-center gap-6 border-t border-slate-100 pt-4">
-            <div className="flex items-center gap-3">
-              <Image
-                src="/received.png"
-                alt="Income"
-                width={18}
-                height={18}
-                className="h-5 w-5"
-              />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Income
-                </p>
+          <div className="flex items-center justify-center gap-6 pt-4 border-t border-[#e2e8f0]">
+            {showIncomeLine && (
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-[#16a34a]"></div>
+                <span className="text-xs font-medium text-[#4b5563]">Income</span>
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Image
-                src="/sent.png"
-                alt="Expenses"
-                width={18}
-                height={18}
-                className="h-5 w-5"
-              />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Expenses
-                </p>
+            )}
+            {showExpenseLine && (
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-[#dc2626]"></div>
+                <span className="text-xs font-medium text-[#4b5563]">Expenses</span>
               </div>
-            </div>
+            )}
           </div>
-        </CardContent>
-        
-      </Card>
+        </div>
 
-      {transactions.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-          <p className="text-lg font-semibold text-slate-800">
-            No transactions found
-          </p>
-          <p className="mt-2 text-sm text-slate-500">
-            Start sending or receiving transfers to see your activity here.
+      {/* SECTION 3: Bottom Section - Detailed Transaction Table */}
+      <Separator />
+
+      <div className="flex flex-col gap-6">
+        {/* Section Header */}
+        <div className="flex flex-col gap-1">
+          <h2 className="text-xl font-bold tracking-tight text-[#111827]">
+            Recent Activities
+          </h2>
+          <p className="text-sm text-[#4b5563]">
+            Detailed transaction log with search, filter, and export capabilities.
           </p>
         </div>
-      ) : (
-        <div className="rounded-2xl border border-slate-200 bg-white p-0 shadow-sm">
-          <div className="border-b border-slate-100 px-6 py-4">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Recent Activity
-            </h2>
-            <p className="text-sm text-slate-500">
-              Search, filter, or export your transactions.
+
+        {/* Transaction Table */}
+        {transactions.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[#cbd5e1] bg-[#f9fafb] p-10 text-center">
+            <p className="text-lg font-semibold text-[#374151]">
+              No transactions found
+            </p>
+            <p className="mt-2 text-sm text-[#4b5563]">
+              Start sending or receiving transfers to see your activity here.
             </p>
           </div>
-          <div className="px-4 py-4">
+        ) : (
+          <div className="w-full">
             <DataTable
               columns={transactionColumns}
               data={transactions}
@@ -787,9 +968,9 @@ export default function TransactionHistoryPage() {
               enableRowSelection={true}
             />
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </Card>
   )
 }
 
