@@ -1,11 +1,16 @@
 import { handleTransfer } from "../services/transfer/transfer";
 import { handleCheckBalance } from "../services/balance/balance";
 import { handleTransactionHistory } from "../services/transaction-history/handler";
+import { handleSwap } from "../services/swap/swap";
 
 export async function routeAction(action: any, senderPhone?: string) {
   if (!action) return null; // No structured action → AI-only message
 
   switch (action.action) {
+    case "swap":
+      console.log("💱 Executing swap with action:", action);
+      return await handleSwap(action);
+
     case "bind_wallet":
       return `🔗 Wallet received: ${action.wallet}\n(Feature not implemented yet)`;
 

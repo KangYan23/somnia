@@ -53,6 +53,15 @@ User says: "alert me when STT drops 10%"
   "threshold_percent": <number>
 }
 -------------------------------------------------------
+ACTION: swap
+User says: "swap 0.1 STT to USDC", "exchange 10 USDC for STT", "trade 5 STT to USDC"
+{
+  "action": "swap",
+  "amount": <number>,
+  "tokenFrom": "STT" | "USDC",
+  "tokenTo": "STT" | "USDC"
+}
+-------------------------------------------------------
 
 IMPORTANT RULES:
 - For general questions: NO JSON, just answer naturally.
