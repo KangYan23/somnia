@@ -27,6 +27,11 @@ export interface Transaction {
   counterparty: string
 }
 
+type TimestampFilterValue = {
+  start?: string
+  end?: string
+}
+
 const EXPLORER_URL =
   process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER_URL ||
   "https://shannon-explorer.somnia.network"
@@ -61,6 +66,24 @@ function formatReadableAmount(amount: string): string {
   } else {
     return `${num.toFixed(2)}`
   }
+}
+
+function parseFilterDate(value?: string | null) {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function startOfDay(date: Date) {
+  const clone = new Date(date)
+  clone.setHours(0, 0, 0, 0)
+  return clone
+}
+
+function endOfDay(date: Date) {
+  const clone = new Date(date)
+  clone.setHours(23, 59, 59, 999)
+  return clone
 }
 
 export const transactionColumns: ColumnDef<Transaction>[] = [
@@ -195,6 +218,30 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
           <div className="text-xs text-slate-500">{formatTime(timestamp)}</div>
         </div>
       )
+    },
+    filterFn: (row, id, value?: TimestampFilterValue) => {
+      if (!value || (!value.start && !value.end)) {
+        return true
+      }
+
+      const timestamp = row.getValue(id) as number
+      if (!timestamp) {
+        return true
+      }
+
+      const date = new Date(timestamp * 1000)
+      const startDate = parseFilterDate(value.start)
+      const endDate = parseFilterDate(value.end)
+
+      if (startDate && date < startOfDay(startDate)) {
+        return false
+      }
+
+      if (endDate && date > endOfDay(endDate)) {
+        return false
+      }
+
+      return true
     },
   },
   {
