@@ -1,12 +1,11 @@
+import "./env-setup"; // Must be first!
 import express from "express";
 import axios from "axios";
-import dotenv from "dotenv";
 import { processNLP } from "./nlp";
 import { routeAction } from "./router";
 import { normalizePhone } from "../src/lib/phone";
 import { startEventSubscribers } from "./subscriber";
 
-dotenv.config({ path: '../.env' });
 
 const app = express();
 app.use(express.json());

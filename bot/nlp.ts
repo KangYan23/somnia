@@ -79,7 +79,7 @@ User: "show all balances" → Reply: "Checking all your balances now!\n\`\`\`jso
 export async function processNLP(message: string): Promise<string> {
   try {
     const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
+      "https://api.openai.com/v1/chat/completions",
       {
         model: "gpt-4o-mini",
         messages: [
