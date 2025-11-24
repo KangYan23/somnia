@@ -14,7 +14,7 @@ import Image from "next/image"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { DataTableViewOptions } from "./data-table-view-options"
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,7 +112,7 @@ export function DataTableToolbar<TData>({
             onChange={(event) =>
               searchColumn.setFilterValue(event.target.value)
             }
-            className="h-8 w-[150px] lg:w-[250px]"
+            className="h-8 w-[400px] lg:w-[550px]"
           />
         )}
         <div className="flex flex-wrap items-center gap-2">
@@ -122,7 +122,7 @@ export function DataTableToolbar<TData>({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 border px-3 data-[state=open]:bg-accent"
+                  className="h-8 border px-3 data-[state=open]:bg-accent hover:bg-transparent"
                 >
                   <span>Transaction</span>
                   {directionColumn.getIsSorted() === "desc" ? (
@@ -190,7 +190,7 @@ export function DataTableToolbar<TData>({
                   variant="ghost"
                   size="sm"
                   id="timestamp-filter"
-                  className="h-8 border px-3 data-[state=open]:bg-accent"
+                  className="h-8 border px-3 data-[state=open]:bg-accent hover:bg-transparent"
                 >
                   <CalendarDays className="mr-2 h-4 w-4 text-slate-500" />
                   <span className="truncate text-sm">
@@ -211,23 +211,23 @@ export function DataTableToolbar<TData>({
                   />
                   {(timestampFilterValue.start ||
                     timestampFilterValue.end) && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="mt-3 w-full justify-center text-xs font-semibold text-rose-500 hover:bg-red-400"
-                      onClick={handleTimestampClear}
-                    >
-                      CLEAR
-                    </Button>
-                  )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mt-3 w-full justify-center text-xs font-semibold text-rose-500 hover:bg-red-400"
+                        onClick={handleTimestampClear}
+                      >
+                        CLEAR
+                      </Button>
+                    )}
                 </div>
               </PopoverContent>
             </Popover>
           )}
         </div>
       </div>
-      <DataTableViewOptions table={table} />
+
     </div>
   )
 }

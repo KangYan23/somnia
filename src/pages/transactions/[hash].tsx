@@ -6,7 +6,7 @@ import { Activity, TrendingUp, Check, ArrowUp, ArrowDown, ExternalLink, ChevronD
 import { useEffect, useMemo, useState, useRef, type KeyboardEvent } from "react"
 import { motion, animate } from "framer-motion"
 import { useRouter } from "next/router"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis, RadialBar, RadialBarChart, Area, AreaChart } from "recharts"
 
 import { DataTable } from "@/components/data-table/data-table"
 import {
@@ -669,7 +669,7 @@ export default function TransactionHistoryPage() {
     transactionsInRange[0]?.token || transactions[0]?.token || "SOM"
 
   return renderPage(
-    <Card className="rounded-2xl px-8 py-8 shadow-lg gap-0 space-y-10 fade-in">
+    <div className="space-y-10 fade-in">
       {/* Header Section */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
@@ -725,15 +725,59 @@ export default function TransactionHistoryPage() {
                 }
               }}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-2 h-2 rounded-full ${chartSummary.netFlow >= 0 ? 'bg-primary' : 'bg-destructive'}`}></div>
+              <div className="flex items-start justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground">Net Flow</p>
+                <span className={`text-xs font-semibold ${chartSummary.netFlow >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {chartSummary.netFlow >= 0 ? '↑' : '↓'}{Math.abs(trend.percentage)}%
+                </span>
               </div>
-              <div className="space-y-1">
-                <p className="text-lg font-bold text-foreground">
-                  {chartSummary.netFlow >= 0 ? "+" : ""}{formatDisplayAmount(Math.abs(chartSummary.netFlow))}
-                </p>
-                <p className="text-xs text-muted-foreground">{primaryToken}</p>
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-2xl font-bold text-foreground mb-1">
+                    {chartSummary.netFlow >= 0 ? "+" : ""}{formatDisplayAmount(Math.abs(chartSummary.netFlow))}
+                  </p>
+                  <p className="text-xs text-muted-foreground">from {transactionsInRange.length} (last 30 days)</p>
+                </div>
+                <div className="flex-1 max-w-[120px]">
+                  <ChartContainer
+                    config={{
+                      netFlow: {
+                        label: "Net Flow",
+                        color: chartSummary.netFlow >= 0 ? "#059669" : "#ef4444",
+                      },
+                    }}
+                    className="h-[50px] w-full"
+                  >
+                    <AreaChart
+                      data={chartData.slice(-7).map((point) => ({
+                        value: point.income - point.expenses,
+                      }))}
+                      margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
+                    >
+                      <defs>
+                        <linearGradient id="fillNetFlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop
+                            offset="5%"
+                            stopColor={chartSummary.netFlow >= 0 ? "#059669" : "#ef4444"}
+                            stopOpacity={0.8}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor={chartSummary.netFlow >= 0 ? "#059669" : "#ef4444"}
+                            stopOpacity={0.1}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke={chartSummary.netFlow >= 0 ? "#059669" : "#ef4444"}
+                        fill="url(#fillNetFlow)"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                </div>
               </div>
             </motion.div>
 
@@ -746,15 +790,63 @@ export default function TransactionHistoryPage() {
               transition={{ duration: 0.4, ease: "easeOut", delay: 0.05 }}
               className="rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 slide-in"
             >
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-chart-1"></div>
+              <div className="flex items-start justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground">Total Txns</p>
+                <span className={`text-xs font-semibold ${velocityChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {velocityChange >= 0 ? '↑' : '↓'}{Math.abs(velocityChange).toFixed(0)}%
+                </span>
               </div>
-              <div className="space-y-1">
-                <p className="text-lg font-bold text-foreground">
-                  {additionalMetrics.totalTransactions}
-                </p>
-                <p className="text-xs text-muted-foreground">transactions</p>
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-2xl font-bold text-foreground mb-1">
+                    {additionalMetrics.totalTransactions}
+                  </p>
+                  <p className="text-xs text-muted-foreground">from {transactionsInRange.length} (last 30 days)</p>
+                </div>
+                <div className="flex-1 max-w-[120px]">
+                  <ChartContainer
+                    config={{
+                      transactions: {
+                        label: "Transactions",
+                        color: "#10b981",
+                      },
+                    }}
+                    className="h-[50px] w-full"
+                  >
+                    <AreaChart
+                      data={chartData.slice(-7).map((point, idx) => ({
+                        value: transactionsInRange.filter((tx) => {
+                          const txDate = new Date(tx.timestamp * 1000);
+                          const pointDate = new Date(point.key);
+                          return txDate.toDateString() === pointDate.toDateString();
+                        }).length,
+                      }))}
+                      margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
+                    >
+                      <defs>
+                        <linearGradient id="fillTransactions" x1="0" y1="0" x2="0" y2="1">
+                          <stop
+                            offset="5%"
+                            stopColor="#10b981"
+                            stopOpacity={0.8}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#10b981"
+                            stopOpacity={0.1}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#10b981"
+                        fill="url(#fillTransactions)"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                </div>
               </div>
             </motion.div>
 
@@ -767,15 +859,59 @@ export default function TransactionHistoryPage() {
               transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
               className="rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 slide-in"
             >
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-chart-2"></div>
+              <div className="flex items-start justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground">Total Volume</p>
+                <span className={`text-xs font-semibold ${chartSummary.incomeChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {chartSummary.incomeChange >= 0 ? '↑' : '↓'}{Math.abs(chartSummary.incomeChange).toFixed(0)}%
+                </span>
               </div>
-              <div className="space-y-1">
-                <p className="text-lg font-bold text-foreground">
-                  {formatDisplayAmount(additionalMetrics.totalVolume)}
-                </p>
-                <p className="text-xs text-muted-foreground">{primaryToken}</p>
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-2xl font-bold text-foreground mb-1">
+                    {formatDisplayAmount(additionalMetrics.totalVolume)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">from {transactionsInRange.length} (last 30 days)</p>
+                </div>
+                <div className="flex-1 max-w-[120px]">
+                  <ChartContainer
+                    config={{
+                      volume: {
+                        label: "Volume",
+                        color: "#34d399",
+                      },
+                    }}
+                    className="h-[50px] w-full"
+                  >
+                    <AreaChart
+                      data={chartData.slice(-7).map((point) => ({
+                        value: point.income + point.expenses,
+                      }))}
+                      margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
+                    >
+                      <defs>
+                        <linearGradient id="fillVolume" x1="0" y1="0" x2="0" y2="1">
+                          <stop
+                            offset="5%"
+                            stopColor="#34d399"
+                            stopOpacity={0.8}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#34d399"
+                            stopOpacity={0.1}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#34d399"
+                        fill="url(#fillVolume)"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -979,107 +1115,102 @@ export default function TransactionHistoryPage() {
           </div>
         </div>
 
-        {/* Right Section: Transaction Details */}
+        {/* Right Section: Transaction Details - Radial Chart */}
         <motion.div
           variants={{
             hidden: { opacity: 0, y: 20 },
             visible: { opacity: 1, y: 0 },
           }}
           transition={{ duration: 0.4, ease: "easeOut", delay: 0.15 }}
-          className="lg:col-span-2 rounded-lg border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all duration-200 slide-in flex flex-col h-full"
+          className="lg:col-span-2 rounded-lg border border-border bg-card shadow-sm hover:shadow-md transition-all duration-200 slide-in flex flex-col h-full"
         >
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-2 p-6 pb-0">
             <div className="w-2 h-2 rounded-full bg-chart-3"></div>
-            <p className="text-xs font-medium text-muted-foreground">Transaction Details</p>
+            <p className="text-xs font-medium text-muted-foreground">Transaction Analytics</p>
           </div>
 
-          <div className="flex-1 space-y-6">
-            {/* Activity Metrics */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between py-2 border-b border-border/30">
-                <span className="text-sm text-muted-foreground">This Week Activity</span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-lg font-bold text-foreground">
-                    {additionalMetrics.velocityThisWeek}
-                  </span>
-                  {velocityChange !== 0 && (
-                    <span className={`text-xs font-medium ${velocityChange >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                      {velocityChange >= 0 ? '↑' : '↓'}{Math.abs(velocityChange).toFixed(0)}%
-                    </span>
-                  )}
+          <div className="flex-1 pb-0 p-6">
+            <ChartContainer
+              config={{
+                sent: {
+                  label: "Sent",
+                  color: "#059669",
+                },
+                received: {
+                  label: "Received",
+                  color: "#10b981",
+                },
+                avgTransaction: {
+                  label: "Avg Transaction",
+                  color: "#34d399",
+                },
+                largestTransaction: {
+                  label: "Largest",
+                  color: "#6ee7b7",
+                },
+                weekActivity: {
+                  label: "Week Activity",
+                  color: "#a7f3d0",
+                },
+              }}
+              className="mx-auto aspect-square max-h-[300px]"
+            >
+              <RadialBarChart
+                data={[
+                  {
+                    metric: "weekActivity",
+                    value: Math.min(additionalMetrics.velocityThisWeek * 10, 100),
+                    fill: "#a7f3d0",
+                  },
+                  {
+                    metric: "largestTransaction",
+                    value: Math.min((additionalMetrics.largestTransaction / additionalMetrics.totalVolume) * 100 || 0, 100),
+                    fill: "#6ee7b7",
+                  },
+                  {
+                    metric: "avgTransaction",
+                    value: Math.min((additionalMetrics.avgTransactionSize / additionalMetrics.largestTransaction) * 100 || 0, 100),
+                    fill: "#34d399",
+                  },
+                  {
+                    metric: "received",
+                    value: Math.min((additionalMetrics.receivedCount / additionalMetrics.totalTransactions) * 100 || 0, 100),
+                    fill: "#10b981",
+                  },
+                  {
+                    metric: "sent",
+                    value: Math.min((additionalMetrics.sentCount / additionalMetrics.totalTransactions) * 100 || 0, 100),
+                    fill: "#059669",
+                  },
+                ]}
+                innerRadius={30}
+                outerRadius={110}
+              >
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent hideLabel nameKey="metric" />}
+                />
+                <RadialBar dataKey="value" background />
+              </RadialBarChart>
+            </ChartContainer>
+          </div>
 
-                  {!isUsingCustomRange && (
-                    <Select value={rangePreset} onValueChange={(value: RangePreset) => {
-                      setRangePreset(value)
-                      setChartAnimationKey(key => key + 1)
-                    }}>
-                      <SelectTrigger className="w-36 h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {RANGE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between py-2 border-b border-border/30">
-                <span className="text-sm text-muted-foreground">Sent/Received Ratio</span>
-                <span className="text-lg font-bold text-foreground">
-                  {additionalMetrics.sentCount}/{additionalMetrics.receivedCount}
-                </span>
-              </div>
+          <div className="flex flex-col gap-2 text-sm p-6 pt-0">
+            <div className="flex items-center gap-2 leading-none font-medium">
+              {velocityChange >= 0 ? (
+                <>
+                  Trending up by {Math.abs(velocityChange).toFixed(1)}% this week
+                  <TrendingUp className="h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  Trending down by {Math.abs(velocityChange).toFixed(1)}% this week
+                  <ArrowDown className="h-4 w-4" />
+                </>
+              )}
             </div>
-
-            {/* Transaction Statistics */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between py-2 border-b border-border/30">
-                <span className="text-sm text-muted-foreground">Average Transaction</span>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-foreground">
-                    {formatDisplayAmount(additionalMetrics.avgTransactionSize)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">{primaryToken}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between py-2 border-b border-border/30">
-                <span className="text-sm text-muted-foreground">Largest Transaction</span>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-foreground">
-                    {formatDisplayAmount(additionalMetrics.largestTransaction)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">{primaryToken}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Account Health Indicator */}
-            <div className="mt-auto pt-4">
-              <div className="bg-gradient-to-r from-muted/50 to-muted/30 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-muted-foreground">Account Health</span>
-                  <span className={`text-sm font-bold ${netFlowPercentage >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                    {netFlowPercentage >= 0 ? 'Positive' : 'Negative'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-500 ${netFlowPercentage >= 0 ? 'bg-primary' : 'bg-destructive'}`}
-                      style={{ width: `${Math.min(Math.abs(netFlowPercentage), 100)}%` }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {Math.abs(netFlowPercentage).toFixed(1)}%
-                  </span>
-                </div>
-              </div>
+            <div className="text-muted-foreground leading-none">
+              Showing transaction metrics for {selectedRange.label}
             </div>
           </div>
         </motion.div>
@@ -1119,7 +1250,7 @@ export default function TransactionHistoryPage() {
           </div>
         )}
       </div>
-    </Card>
+    </div>
   )
 }
 
