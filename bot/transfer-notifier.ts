@@ -184,7 +184,7 @@ async function subscribeToTransferConfirmed() {
           const recipientPhone = decoded.toPhone.trim();
           const senderPhone = decoded.fromPhone?.trim() || '';
           const amountFormatted = formatAmount(decoded.amount, decoded.token);
-          const txLink = getTxLink(decoded.txHash);
+          const txLink = decoded.txHash ? getTxLink(decoded.txHash) : '';
           
           // Notify recipient
           if (recipientPhone) {
