@@ -211,23 +211,22 @@ export function DataTableToolbar<TData>({
                   />
                   {(timestampFilterValue.start ||
                     timestampFilterValue.end) && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="mt-3 w-full justify-center text-xs font-semibold text-rose-500 hover:bg-red-400"
-                      onClick={handleTimestampClear}
-                    >
-                      CLEAR
-                    </Button>
-                  )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mt-3 w-full justify-center text-xs font-semibold text-rose-500 hover:bg-red-400"
+                        onClick={handleTimestampClear}
+                      >
+                        CLEAR
+                      </Button>
+                    )}
                 </div>
               </PopoverContent>
             </Popover>
           )}
         </div>
       </div>
-      <DataTableViewOptions table={table} />
     </div>
   )
 }
