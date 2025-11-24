@@ -297,7 +297,7 @@ export default function TransactionHistoryPage() {
   const [rangePreset, setRangePreset] = useState<RangePreset>("3m")
   const [chartView, setChartView] = useState<ChartView>("both")
   const [chartAnimationKey, setChartAnimationKey] = useState(0)
-  
+
   // Refs for animated amount values
   const incomeAmountRef = useRef<HTMLHeadingElement>(null)
   const expenseAmountRef = useRef<HTMLHeadingElement>(null)
@@ -392,13 +392,13 @@ export default function TransactionHistoryPage() {
 
     const incomeChange = prevPoint
       ? ((lastPoint.income - prevPoint.income) /
-          Math.max(prevPoint.income || 1, 1)) *
-        100
+        Math.max(prevPoint.income || 1, 1)) *
+      100
       : 0
     const expenseChange = prevPoint
       ? ((lastPoint.expenses - prevPoint.expenses) /
-          Math.max(prevPoint.expenses || 1, 1)) *
-        100
+        Math.max(prevPoint.expenses || 1, 1)) *
+      100
       : 0
 
     return {
@@ -492,7 +492,7 @@ export default function TransactionHistoryPage() {
 
     const sentTxs = transactionsInRange.filter((t) => t.direction === "sent")
     const receivedTxs = transactionsInRange.filter((t) => t.direction === "received")
-    
+
     const amounts = transactionsInRange.map((t) => formatWeiToNumber(t.amount))
     const avgTransactionSize = amounts.reduce((sum, amt) => sum + amt, 0) / amounts.length
     const largestTransaction = Math.max(...amounts)
@@ -502,7 +502,7 @@ export default function TransactionHistoryPage() {
     const now = new Date()
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
-    
+
     const thisWeekTxs = transactions.filter((tx) => {
       const txDate = new Date(tx.timestamp * 1000)
       return txDate >= oneWeekAgo && txDate <= now
@@ -664,11 +664,10 @@ export default function TransactionHistoryPage() {
           <div className="flex items-center gap-2">
             <Badge
               variant="outline"
-              className={`h-6 px-2.5 text-xs font-medium ${
-                chartSummary.netFlow >= 0
+              className={`h-6 px-2.5 text-xs font-medium ${chartSummary.netFlow >= 0
                   ? "bg-[#dff5e1] text-[#15803d] border-[#16a34a]"
                   : "bg-[#fee2e2] text-[#dc2626] border-[#dc2626]"
-              }`}
+                }`}
             >
               {formatDisplayAmount(chartSummary.netFlow)} {primaryToken}
             </Badge>
@@ -729,11 +728,10 @@ export default function TransactionHistoryPage() {
             <div className="flex items-center gap-2">
               <Badge
                 variant="outline"
-                className={`h-6 border-0 px-2.5 text-xs font-medium ${
-                  velocityChange >= 0
+                className={`h-6 border-0 px-2.5 text-xs font-medium ${velocityChange >= 0
                     ? "bg-[#dff5e1] text-[#15803d]"
                     : "bg-[#fee2e2] text-[#dc2626]"
-                }`}
+                  }`}
               >
                 {velocityChange >= 0 ? (
                   <ArrowUp className="h-3 w-3 inline mr-1" />
@@ -779,160 +777,158 @@ export default function TransactionHistoryPage() {
 
       {/* SECTION 2: Main Analytics Section */}
       <div className="flex flex-col gap-6 rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563]">
-                  Cashflow Trend
-                </p>
-                <h2 className="text-2xl font-bold tracking-tight text-[#111827]">
-                  Income vs Expenses
-                </h2>
-              </div>
-              <Select
-                value={rangePreset}
-                onValueChange={(value) => setRangePreset(value as RangePreset)}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="h-8 rounded-sm border border-[#e2e8f0] px-3 text-sm font-semibold bg-white hover:bg-[#f9fafb] data-[state=open]:bg-[#f9fafb]"
-                  aria-label="Select cashflow range"
-                >
-                  <SelectValue placeholder="Last 3 months" />
-                </SelectTrigger>
-                <SelectContent
-                  align="end"
-                  position="popper"
-                  sideOffset={4}
-                  className="w-[180px] rounded-lg border border-[#e2e8f0] bg-white shadow-lg"
-                >
-                  {RANGE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-[#4b5563]">
-                {selectedRange.label}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563]">
+                Cashflow Trend
               </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => toggleChartView("income")}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                    chartView === "income"
-                      ? "bg-[#16a34a] text-white"
-                      : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
-                  }`}
-                >
-                  Income
-                </button>
-                <button
-                  onClick={() => toggleChartView("expenses")}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                    chartView === "expenses"
-                      ? "bg-[#dc2626] text-white"
-                      : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
-                  }`}
-                >
-                  Expenses
-                </button>
-              </div>
+              <h2 className="text-2xl font-bold tracking-tight text-[#111827]">
+                Income vs Expenses
+              </h2>
             </div>
-          </div>
-          <motion.div
-            key={chartAnimationKey}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="w-full"
-          >
-            <ChartContainer config={chartConfig} className="h-80 w-full">
-              <LineChart
-                accessibilityLayer
-                data={chartData}
-                margin={{
-                  left: 12,
-                  right: 12,
-                  top: 12,
-                  bottom: 12,
-                }}
+            <Select
+              value={rangePreset}
+              onValueChange={(value) => setRangePreset(value as RangePreset)}
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-8 rounded-sm border border-[#e2e8f0] px-3 text-sm font-semibold bg-white hover:bg-[#f9fafb] data-[state=open]:bg-[#f9fafb]"
+                aria-label="Select cashflow range"
               >
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tick={{ fill: "#4b5563", fontSize: 12 }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tick={{ fill: "#4b5563", fontSize: 12 }}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      indicator="line"
-                      formatter={(value, name) => (
-                        <div className="flex w-full items-center justify-between">
-                          <span>
-                            {chartConfig[name as keyof typeof chartConfig]
-                              ?.label || name}
-                          </span>
-                          <span className="font-mono font-semibold">
-                            {Number(value).toLocaleString(undefined, {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}{" "}
-                            {primaryToken}
-                          </span>
-                        </div>
-                      )}
-                    />
-                  }
-                />
-                {showIncomeLine && (
-                  <Line
-                    dataKey="income"
-                    type="monotone"
-                    stroke="#16a34a"
-                    strokeWidth={2.5}
-                    dot={false}
-                  />
-                )}
-                {showExpenseLine && (
-                  <Line
-                    dataKey="expenses"
-                    type="monotone"
-                    stroke="#dc2626"
-                    strokeWidth={2.5}
-                    dot={false}
-                  />
-                )}
-              </LineChart>
-            </ChartContainer>
-          </motion.div>
-          <div className="flex items-center justify-center gap-6 pt-4 border-t border-[#e2e8f0]">
-            {showIncomeLine && (
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-[#16a34a]"></div>
-                <span className="text-xs font-medium text-[#4b5563]">Income</span>
-              </div>
-            )}
-            {showExpenseLine && (
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-[#dc2626]"></div>
-                <span className="text-xs font-medium text-[#4b5563]">Expenses</span>
-              </div>
-            )}
+                <SelectValue placeholder="Last 3 months" />
+              </SelectTrigger>
+              <SelectContent
+                align="end"
+                position="popper"
+                sideOffset={4}
+                className="w-[180px] rounded-lg border border-[#e2e8f0] bg-white shadow-lg"
+              >
+                {RANGE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-[#4b5563]">
+              {selectedRange.label}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => toggleChartView("income")}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${chartView === "income"
+                    ? "bg-[#16a34a] text-white"
+                    : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
+                  }`}
+              >
+                Income
+              </button>
+              <button
+                onClick={() => toggleChartView("expenses")}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${chartView === "expenses"
+                    ? "bg-[#dc2626] text-white"
+                    : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
+                  }`}
+              >
+                Expenses
+              </button>
+            </div>
           </div>
         </div>
+        <motion.div
+          key={chartAnimationKey}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="w-full"
+        >
+          <ChartContainer config={chartConfig} className="h-80 w-full">
+            <LineChart
+              accessibilityLayer
+              data={chartData}
+              margin={{
+                left: 12,
+                right: 12,
+                top: 12,
+                bottom: 12,
+              }}
+            >
+              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis
+                dataKey="label"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tick={{ fill: "#4b5563", fontSize: 12 }}
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tick={{ fill: "#4b5563", fontSize: 12 }}
+              />
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    indicator="line"
+                    formatter={(value, name) => (
+                      <div className="flex w-full items-center justify-between">
+                        <span>
+                          {chartConfig[name as keyof typeof chartConfig]
+                            ?.label || name}
+                        </span>
+                        <span className="font-mono font-semibold">
+                          {Number(value).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          {primaryToken}
+                        </span>
+                      </div>
+                    )}
+                  />
+                }
+              />
+              {showIncomeLine && (
+                <Line
+                  dataKey="income"
+                  type="monotone"
+                  stroke="#16a34a"
+                  strokeWidth={2.5}
+                  dot={false}
+                />
+              )}
+              {showExpenseLine && (
+                <Line
+                  dataKey="expenses"
+                  type="monotone"
+                  stroke="#dc2626"
+                  strokeWidth={2.5}
+                  dot={false}
+                />
+              )}
+            </LineChart>
+          </ChartContainer>
+        </motion.div>
+        <div className="flex items-center justify-center gap-6 pt-4 border-t border-[#e2e8f0]">
+          {showIncomeLine && (
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-[#16a34a]"></div>
+              <span className="text-xs font-medium text-[#4b5563]">Income</span>
+            </div>
+          )}
+          {showExpenseLine && (
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-[#dc2626]"></div>
+              <span className="text-xs font-medium text-[#4b5563]">Expenses</span>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* SECTION 3: Bottom Section - Detailed Transaction Table */}
       <Separator />

@@ -8,8 +8,29 @@ export async function routeAction(action: any, senderPhone?: string) {
 
   switch (action.action) {
     case "swap":
-      console.log("💱 Executing swap with action:", action);
-      return await handleSwap(action);
+      // Return interactive message structure for index.ts to handle
+      return {
+        type: "interactive",
+        body: `You want to swap ${action.amount} ${action.tokenFrom} to ${action.tokenTo}.\n\nDo you want to proceed?`,
+        action: {
+          buttons: [
+            {
+              type: "reply",
+              reply: {
+                id: `confirm_swap:${action.amount}:${action.tokenFrom}:${action.tokenTo}`,
+                title: "Yes"
+              }
+            },
+            {
+              type: "reply",
+              reply: {
+                id: "cancel_swap",
+                title: "No"
+              }
+            }
+          ]
+        }
+      };
 
     case "bind_wallet":
       return `🔗 Wallet received: ${action.wallet}\n(Feature not implemented yet)`;

@@ -5,6 +5,7 @@ import { processNLP } from "./nlp";
 import { routeAction } from "./router";
 import { normalizePhone } from "../src/lib/phone";
 import { startEventSubscribers } from "./subscriber";
+import { handleSwap } from "../services/swap/swap";
 
 
 const app = express();
@@ -53,10 +54,50 @@ app.post("/webhook", async (req, res) => {
   }
 
   const message = value?.messages?.[0];
+
   if (!message) return res.sendStatus(200);
 
   const from = message.from;
+
+  // Handle Interactive Button Replies
+  if (message.type === "interactive" && message.interactive.type === "button_reply") {
+    const buttonId = message.interactive.button_reply.id;
+    console.log("🔘 Button clicked:", buttonId);
+
+    if (buttonId === "cancel_swap") {
+      await sendWhatsAppMessage(from, "❌ Swap cancelled.");
+      return res.sendStatus(200);
+    }
+
+    if (buttonId.startsWith("confirm_swap:")) {
+      const parts = buttonId.split(":");
+      // Format: confirm_swap:amount:tokenFrom:tokenTo
+      if (parts.length === 4) {
+        const [_, amount, tokenFrom, tokenTo] = parts;
+
+        await sendWhatsAppMessage(from, "⏳ Processing swap...");
+
+        try {
+          const result = await handleSwap({
+            amount: parseFloat(amount),
+            tokenFrom,
+            tokenTo
+          });
+          await sendWhatsAppMessage(from, result);
+        } catch (error) {
+          console.error("❌ Swap failed:", error);
+          await sendWhatsAppMessage(from, `❌ Swap failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      } else {
+        await sendWhatsAppMessage(from, "❌ Invalid swap data.");
+      }
+      return res.sendStatus(200);
+    }
+  }
+
   const text = message.text?.body;
+
+  if (!text) return res.sendStatus(200);
 
   console.log("📩 Message from:", from);
   console.log("💬 User said:", text);
@@ -145,7 +186,12 @@ app.post("/webhook", async (req, res) => {
   }
 
   console.log("📤 Final reply to user:", finalReply);
-  await sendWhatsAppMessage(from, finalReply);
+
+  if (typeof finalReply === 'object' && finalReply.type === 'interactive') {
+    await sendWhatsAppInteractiveMessage(from, finalReply.body, finalReply.action);
+  } else {
+    await sendWhatsAppMessage(from, finalReply);
+  }
 
   res.sendStatus(200);
 });
@@ -170,6 +216,33 @@ async function sendWhatsAppMessage(to: string, msg: string) {
     console.log("✅ WhatsApp message sent!");
   } catch (e: any) {
     console.error("❌ Sending message failed:", e.response?.data || e);
+  }
+}
+
+async function sendWhatsAppInteractiveMessage(to: string, bodyText: string, action: any) {
+  try {
+    const url = `https://graph.facebook.com/v17.0/${PHONE_NUMBER_ID}/messages`;
+
+    const payload = {
+      messaging_product: "whatsapp",
+      to,
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: {
+          text: bodyText
+        },
+        action: action
+      }
+    };
+
+    await axios.post(url, payload, {
+      headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` }
+    });
+
+    console.log("✅ WhatsApp interactive message sent!");
+  } catch (e: any) {
+    console.error("❌ Sending interactive message failed:", e.response?.data || e);
   }
 }
 
