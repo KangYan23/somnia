@@ -38,6 +38,8 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import WavyBackground from "../../../components/WavyBackground"
+import { ConnectButton } from "@rainbow-me/rainbowkit"
 
 const EXPLORER_URL =
   process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER_URL ||
@@ -46,11 +48,11 @@ const EXPLORER_URL =
 const chartConfig = {
   income: {
     label: "Income",
-    color: "var(--chart-1)",
+    color: "#16a34a",
   },
   expenses: {
     label: "Expenses",
-    color: "var(--chart-2)",
+    color: "#dff5e1",
   },
 } satisfies ChartConfig
 
@@ -252,19 +254,28 @@ function finalizeRange(start: Date, end: Date): ChartRange {
 
 function getRangeFromPreset(preset: RangePreset): ChartRange {
   const now = endOfDay(new Date())
-  const start = startOfDay(new Date(now))
+  // Default start date is November 1st, 2025
+  let start = new Date(now)
+  start.setFullYear(2025)
+  start.setMonth(10) // November is month 10 (0-indexed)
+  start.setDate(1)
+  start = startOfDay(start)
 
+  // For presets, adjust end date as needed
   switch (preset) {
     case "7d":
+      start = new Date(now)
       start.setDate(start.getDate() - 6)
+      start = startOfDay(start)
       break
     case "30d":
+      start = new Date(now)
       start.setDate(start.getDate() - 29)
+      start = startOfDay(start)
       break
     case "3m":
     default:
-      start.setMonth(start.getMonth() - 2)
-      start.setDate(1)
+      // Keep November 1st as start for default
       break
   }
 
@@ -316,6 +327,7 @@ export default function TransactionHistoryPage() {
   const [chartAnimationKey, setChartAnimationKey] = useState(0)
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined)
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined)
+  const [isUsingCustomRange, setIsUsingCustomRange] = useState(false)
   
   // Refs for animated amount values
   const incomeAmountRef = useRef<HTMLHeadingElement>(null)
@@ -371,19 +383,32 @@ export default function TransactionHistoryPage() {
   }
 
   const renderPage = (content: React.ReactNode) => (
-    <div className="min-h-screen bg-background py-8 px-4 sm:px-6 lg:px-8 animate-in">
-      <div className="w-full">{content}</div>
+    <div className="min-h-screen relative overflow-hidden">
+      <div className="absolute inset-0 z-0">
+        <WavyBackground />
+      </div>
+      <div className="relative z-10 py-8 px-4 sm:px-6 lg:px-8">
+        <div className="w-full">{content}</div>
+      </div>
     </div>
   )
 
   const selectedRange = useMemo(() => {
-    // Use custom date range if both dates are selected
-    if (customStartDate && customEndDate) {
+    // Use custom date range if both dates are selected or if using custom range
+    if (isUsingCustomRange && customStartDate && customEndDate) {
       return finalizeRange(customStartDate, customEndDate)
+    } else if (isUsingCustomRange && customStartDate && !customEndDate) {
+      // If only start date is selected, use start date to current date
+      return finalizeRange(customStartDate, new Date())
+    } else if (isUsingCustomRange && !customStartDate && customEndDate) {
+      // If only end date is selected, use 30 days before end date to end date
+      const startDate = new Date(customEndDate)
+      startDate.setDate(startDate.getDate() - 30)
+      return finalizeRange(startDate, customEndDate)
     }
     // Otherwise use preset range
     return getRangeFromPreset(rangePreset)
-  }, [rangePreset, customStartDate, customEndDate])
+  }, [rangePreset, customStartDate, customEndDate, isUsingCustomRange])
 
   const chartData = useMemo(
     () => buildChartData(transactions, selectedRange),
@@ -613,37 +638,28 @@ export default function TransactionHistoryPage() {
     transactionsInRange[0]?.token || transactions[0]?.token || "SOM"
 
   return renderPage(
-    <Card className="rounded-2xl border border-border bg-card px-8 py-8 shadow-lg gap-0 space-y-10 fade-in">
+    <Card className="rounded-2xl px-8 py-8 shadow-lg gap-0 space-y-10 fade-in">
       {/* Header Section */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
-          <div className="mb-2">
-            <Badge
-              variant="outline"
-              className="rounded-sm bg-secondary border-transparent px-3 py-1 text-xs font-semibold uppercase tracking-wide text-secondary-foreground"
-            >
-              <Activity className="h-3.5 w-3.5" />
-              Transaction Dashboard
-            </Badge>
-          </div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Account Analytics
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Account: <span className="font-mono font-medium text-foreground/75">{hash.slice(0, 12)}...{hash.slice(-10)}</span>
-          </p>
         </div>
-        <motion.a
-          href={`${EXPLORER_URL}/address/${hash}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:bg-primary/90 hover:shadow-md zoom-in"
-          whileHover={{ scale: 1.02, y: -1 }}
-          transition={{ type: "spring", stiffness: 250, damping: 20 }}
-        >
-          <ExternalLink className="h-4 w-4" />
-          Explorer
-        </motion.a>
+        <div className="flex items-center gap-3">
+          <ConnectButton />
+          <motion.a
+            href={`${EXPLORER_URL}/address/${hash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:bg-primary/90 hover:shadow-md zoom-in"
+            whileHover={{ scale: 1.02, y: -1 }}
+            transition={{ type: "spring", stiffness: 250, damping: 20 }}
+          >
+            <ExternalLink className="h-4 w-4" />
+            Explorer
+          </motion.a>
+        </div>
       </div>
 
       {/* SECTION 1 & 2: Combined Layout - Cards and Analytics */}
@@ -739,27 +755,43 @@ export default function TransactionHistoryPage() {
               <div className="flex items-center justify-between py-2">
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-gradient-to-r from-chart-1 to-chart-1/80"></div>
+                    <div className="w-3 h-3 rounded-full" style={{ background: '#16a34a' }}></div>
                     <span className="text-sm font-medium text-foreground">Income</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-gradient-to-r from-chart-2 to-chart-2/80"></div>
+                    <div className="w-3 h-3 rounded-full" style={{ background: '#dff5e1', border: '1px solid #16a34a' }}></div>
                     <span className="text-sm font-medium text-foreground">Expenses</span>
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-3 justify-end">
+                  {isUsingCustomRange && (
+                    <button
+                      onClick={() => {
+                        setIsUsingCustomRange(false)
+                        setCustomStartDate(undefined)
+                        setCustomEndDate(undefined)
+                        setRangePreset("30d")
+                        setChartAnimationKey(key => key + 1)
+                      }}
+                      className="px-2 py-1 text-xs rounded-md bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Reset
+                    </button>
+                  )}
                   <div className="flex items-center gap-1">
                     <span className="text-sm font-medium text-muted-foreground">From:</span>
                     <Popover>
                       <PopoverTrigger asChild>
                         <button
                           className={cn(
-                            "px-3 py-1 text-sm rounded-md text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary flex items-center gap-0 min-w-[100px] justify-between",
-                            !customStartDate && "text-muted-foreground"
+                            "px-3 py-1 text-sm rounded-md focus:ring-2 flex items-center gap-2 min-w-[100px] justify-between",
+                            customStartDate && isUsingCustomRange ? "bg-black text-white" : "",
+                            !customStartDate && !isUsingCustomRange && "text-muted-foreground"
                           )}
+                          style={{}}
                         >
-                          {customStartDate ? formatDisplayDate(customStartDate) : formatDisplayDate(selectedRange.startDate)}
+                          {(customStartDate && isUsingCustomRange) ? formatDisplayDate(customStartDate) : formatDisplayDate(selectedRange.startDate)}
                           <ChevronDown className="h-3 w-3 opacity-50" />
                         </button>
                       </PopoverTrigger>
@@ -770,11 +802,13 @@ export default function TransactionHistoryPage() {
                           onSelect={(date) => {
                             if (date) {
                               setCustomStartDate(date)
-                              if (rangePreset) {
-                                setRangePreset("3m")
-                              }
+                              setIsUsingCustomRange(true)
+                              setChartAnimationKey(key => key + 1) // Trigger chart animation
                             }
                           }}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
                           initialFocus
                         />
                       </PopoverContent>
@@ -786,11 +820,13 @@ export default function TransactionHistoryPage() {
                       <PopoverTrigger asChild>
                         <button
                           className={cn(
-                            "px-3 py-1 text-sm rounded-md text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary flex items-center gap-0 min-w-[100px] justify-between",
-                            !customEndDate && "text-muted-foreground"
+                            "px-3 py-1 text-sm rounded-md focus:ring-2 flex items-center gap-2 min-w-[100px] justify-between",
+                            customEndDate && isUsingCustomRange ? "bg-black text-white" : "",
+                            !customEndDate && !isUsingCustomRange && "text-muted-foreground"
                           )}
+                          style={{}}
                         >
-                          {customEndDate ? formatDisplayDate(customEndDate) : formatDisplayDate(selectedRange.endDate)}
+                          {(customEndDate && isUsingCustomRange) ? formatDisplayDate(customEndDate) : formatDisplayDate(selectedRange.endDate)}
                           <ChevronDown className="h-3 w-3 opacity-50" />
                         </button>
                       </PopoverTrigger>
@@ -801,11 +837,13 @@ export default function TransactionHistoryPage() {
                           onSelect={(date) => {
                             if (date) {
                               setCustomEndDate(date)
-                              if (rangePreset) {
-                                setRangePreset("3m")
-                              }
+                              setIsUsingCustomRange(true)
+                              setChartAnimationKey(key => key + 1) // Trigger chart animation
                             }
                           }}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
                           initialFocus
                         />
                       </PopoverContent>
@@ -829,38 +867,21 @@ export default function TransactionHistoryPage() {
                     data={chartData}
                     margin={{
                       left: -35,
-                      right: 16,
-                      top: 16,
-                      bottom: 16,
+                      right: 12,
                     }}
                   >
-                    <defs>
-                      <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0.05}/>
-                      </linearGradient>
-                      <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.05}/>
-                      </linearGradient>
-                    </defs>
-                    
-                    <CartesianGrid 
-                      strokeDasharray="2 4" 
-                      stroke="hsl(var(--border))" 
-                      strokeOpacity={0.3}
-                      vertical={false}
-                    />
+                    <CartesianGrid vertical={false} />
                     <XAxis
                       dataKey="label"
-                      axisLine={false}
                       tickLine={false}
-                      tickMargin={12}
+                      axisLine={false}
+                      tickMargin={8}
                       tick={{ 
                         fill: "hsl(var(--muted-foreground))", 
                         fontSize: 11,
                         fontWeight: 500 
                       }}
+                      tickFormatter={(value) => value.slice(0, 6)}
                     />
                     <YAxis
                       axisLine={false}
@@ -871,48 +892,55 @@ export default function TransactionHistoryPage() {
                         fontSize: 11,
                         fontWeight: 500 
                       }}
+                      domain={[0, 6]}
+                      ticks={[0, 2, 4, 6]}
                     />
                     <ChartTooltip
-                      content={
-                        <div className="bg-popover/95 backdrop-blur-sm border border-border/60 rounded-lg p-3 shadow-xl">
-                          <ChartTooltipContent
-                            indicator="dot"
-                            className="text-sm"
-                            formatter={(value, name) => (
-                              <div className="flex items-center justify-between gap-4 min-w-32">
-                                <span className="font-medium">
-                                  {chartConfig[name as keyof typeof chartConfig]?.label || name}
+                      cursor={false}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload || !payload.length) return null;
+                        return (
+                          <div
+                            className="rounded-lg shadow-lg bg-white/95 border border-border/60 p-3 min-w-[120px]"
+                            style={{ backdropFilter: 'blur(6px)' }}
+                          >
+                            <div className="font-semibold mb-2 text-sm text-foreground">{label}</div>
+                            {payload.map((entry, idx) => (
+                              <div key={entry.dataKey} className="flex items-center gap-2 mb-1">
+                                <span
+                                  className="inline-block w-3 h-3 rounded"
+                                  style={{ background: chartConfig[entry.dataKey as keyof typeof chartConfig]?.color || entry.color }}
+                                ></span>
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  {chartConfig[String(entry.dataKey) as keyof typeof chartConfig]?.label || entry.name}
                                 </span>
-                                <span className="font-bold text-foreground">
-                                  {Number(value).toLocaleString(undefined, {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  })} {primaryToken}
+                                <span className="ml-auto text-sm font-bold text-foreground">
+                                  {Number(entry.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                               </div>
-                            )}
-                          />
-                        </div>
-                      }
+                            ))}
+                          </div>
+                        );
+                      }}
                     />
                     {showIncomeLine && (
                       <Line
                         dataKey="income"
                         type="monotone"
-                        stroke="hsl(var(--chart-1))"
-                        strokeWidth={3}
-                        dot={{ fill: "hsl(var(--chart-1))", strokeWidth: 2, r: 4 }}
-                        activeDot={{ r: 6, stroke: "hsl(var(--chart-1))", strokeWidth: 2 }}
+                        stroke="#16a34a"
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, stroke: "#16a34a", strokeWidth: 2 }}
                       />
                     )}
                     {showExpenseLine && (
                       <Line
                         dataKey="expenses"
                         type="monotone"
-                        stroke="hsl(var(--chart-2))"
-                        strokeWidth={3}
-                        dot={{ fill: "hsl(var(--chart-2))", strokeWidth: 2, r: 4 }}
-                        activeDot={{ r: 6, stroke: "hsl(var(--chart-2))", strokeWidth: 2 }}
+                        stroke="#dff5e1"
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, stroke: "#dff5e1", strokeWidth: 2 }}
                       />
                     )}
                   </LineChart>
@@ -949,6 +977,24 @@ export default function TransactionHistoryPage() {
                     <span className={`text-xs font-medium ${velocityChange >= 0 ? 'text-primary' : 'text-destructive'}`}>
                       {velocityChange >= 0 ? '↑' : '↓'}{Math.abs(velocityChange).toFixed(0)}%
                     </span>
+                  )}
+                  
+                  {!isUsingCustomRange && (
+                    <Select value={rangePreset} onValueChange={(value: RangePreset) => {
+                      setRangePreset(value)
+                      setChartAnimationKey(key => key + 1)
+                    }}>
+                      <SelectTrigger className="w-36 h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RANGE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
               </div>
@@ -1011,8 +1057,6 @@ export default function TransactionHistoryPage() {
       </div>
 
       {/* SECTION 3: Bottom Section - Detailed Transaction Table */}
-      <Separator />
-
       <div className="flex flex-col gap-6">
         {/* Section Header */}
         <div className="flex flex-col gap-1">
