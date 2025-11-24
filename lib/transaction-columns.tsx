@@ -112,9 +112,6 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
             <div className="text-sm font-semibold text-slate-900">
               {isSent ? "Sent" : "Received"}
             </div>
-            <p className="text-xs text-slate-500">
-              {transaction.token} · {isSent ? "Outgoing" : "Incoming"}
-            </p>
           </div>
         </div>
       )
@@ -136,9 +133,6 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
         <div className="text-left">
           <div className="text-sm font-medium text-slate-900">
             {transaction.counterparty || "Unknown"}
-          </div>
-          <div className="text-xs uppercase tracking-wide text-slate-400">
-            {transaction.direction === "sent" ? "Recipient" : "Sender"}
           </div>
         </div>
       )
@@ -242,43 +236,6 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
       }
 
       return true
-    },
-  },
-  {
-    id: "actions",
-    enableHiding: false,
-    cell: ({ row }) => {
-      const transaction = row.original
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontalIcon className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(transaction.txHash)}
-            >
-              Copy transaction hash
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => window.open(getTxLink(transaction.txHash), '_blank')}
-            >
-              View on explorer
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(transaction.counterparty)}
-            >
-              Copy counterparty
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
     },
   },
 ]
