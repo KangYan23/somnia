@@ -267,6 +267,26 @@ html {
   }
 }
 
+/* Wavy Background Styles */
+.wavy-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.wavy-svg {
+  position: absolute;
+  top: -5%;
+  left: -5%;
+  width: 110%;
+  height: 110%;
+  opacity: 0.6;
+}
+
 
 
 
