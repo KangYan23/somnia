@@ -328,7 +328,7 @@ export default function TransactionHistoryPage() {
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined)
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined)
   const [isUsingCustomRange, setIsUsingCustomRange] = useState(false)
-  
+
   // Refs for animated amount values
   const incomeAmountRef = useRef<HTMLHeadingElement>(null)
   const expenseAmountRef = useRef<HTMLHeadingElement>(null)
@@ -441,13 +441,13 @@ export default function TransactionHistoryPage() {
 
     const incomeChange = prevPoint
       ? ((lastPoint.income - prevPoint.income) /
-          Math.max(prevPoint.income || 1, 1)) *
-        100
+        Math.max(prevPoint.income || 1, 1)) *
+      100
       : 0
     const expenseChange = prevPoint
       ? ((lastPoint.expenses - prevPoint.expenses) /
-          Math.max(prevPoint.expenses || 1, 1)) *
-        100
+        Math.max(prevPoint.expenses || 1, 1)) *
+      100
       : 0
 
     return {
@@ -541,7 +541,7 @@ export default function TransactionHistoryPage() {
 
     const sentTxs = transactionsInRange.filter((t) => t.direction === "sent")
     const receivedTxs = transactionsInRange.filter((t) => t.direction === "received")
-    
+
     const amounts = transactionsInRange.map((t) => formatWeiToNumber(t.amount))
     const avgTransactionSize = amounts.reduce((sum, amt) => sum + amt, 0) / amounts.length
     const largestTransaction = Math.max(...amounts)
@@ -551,7 +551,7 @@ export default function TransactionHistoryPage() {
     const now = new Date()
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
-    
+
     const thisWeekTxs = transactions.filter((tx) => {
       const txDate = new Date(tx.timestamp * 1000)
       return txDate >= oneWeekAgo && txDate <= now
@@ -652,7 +652,7 @@ export default function TransactionHistoryPage() {
             href={`${EXPLORER_URL}/address/${hash}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:bg-primary/90 hover:shadow-md zoom-in"
+            className="flex h-9 items-center gap-2 rounded-lg bg-[#000000] px-4 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:bg-primary/90 hover:shadow-md zoom-in"
             whileHover={{ scale: 1.02, y: -1 }}
             transition={{ type: "spring", stiffness: 250, damping: 20 }}
           >
@@ -763,7 +763,7 @@ export default function TransactionHistoryPage() {
                     <span className="text-sm font-medium text-foreground">Expenses</span>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3 justify-end">
                   {isUsingCustomRange && (
                     <button
@@ -785,9 +785,8 @@ export default function TransactionHistoryPage() {
                       <PopoverTrigger asChild>
                         <button
                           className={cn(
-                            "px-3 py-1 text-sm rounded-md focus:ring-2 flex items-center gap-2 min-w-[100px] justify-between",
-                            customStartDate && isUsingCustomRange ? "bg-black text-white" : "",
-                            !customStartDate && !isUsingCustomRange && "text-muted-foreground"
+                            "px-3 py-1 text-sm rounded-md focus:outline-none flex items-center gap-2 min-w-[100px] justify-between",
+                            customStartDate && isUsingCustomRange ? "bg-white text-black" : "bg-white text-black"
                           )}
                           style={{}}
                         >
@@ -820,9 +819,8 @@ export default function TransactionHistoryPage() {
                       <PopoverTrigger asChild>
                         <button
                           className={cn(
-                            "px-3 py-1 text-sm rounded-md focus:ring-2 flex items-center gap-2 min-w-[100px] justify-between",
-                            customEndDate && isUsingCustomRange ? "bg-black text-white" : "",
-                            !customEndDate && !isUsingCustomRange && "text-muted-foreground"
+                            "px-3 py-1 text-sm rounded-md focus:outline-none flex items-center gap-2 min-w-[100px] justify-between",
+                            customEndDate && isUsingCustomRange ? "bg-white text-black" : "bg-white text-black"
                           )}
                           style={{}}
                         >
@@ -852,7 +850,7 @@ export default function TransactionHistoryPage() {
                 </div>
               </div>
             </div>
-            
+
             <motion.div
               key={chartAnimationKey}
               initial={{ opacity: 0, scale: 0.95 }}
@@ -876,10 +874,10 @@ export default function TransactionHistoryPage() {
                       tickLine={false}
                       axisLine={false}
                       tickMargin={8}
-                      tick={{ 
-                        fill: "hsl(var(--muted-foreground))", 
+                      tick={{
+                        fill: "hsl(var(--muted-foreground))",
                         fontSize: 11,
-                        fontWeight: 500 
+                        fontWeight: 500
                       }}
                       tickFormatter={(value) => value.slice(0, 6)}
                     />
@@ -887,10 +885,10 @@ export default function TransactionHistoryPage() {
                       axisLine={false}
                       tickLine={false}
                       tickMargin={12}
-                      tick={{ 
-                        fill: "hsl(var(--muted-foreground))", 
+                      tick={{
+                        fill: "hsl(var(--muted-foreground))",
                         fontSize: 11,
-                        fontWeight: 500 
+                        fontWeight: 500
                       }}
                       domain={[0, 6]}
                       ticks={[0, 2, 4, 6]}
@@ -963,7 +961,7 @@ export default function TransactionHistoryPage() {
             <div className="w-2 h-2 rounded-full bg-chart-3"></div>
             <p className="text-xs font-medium text-muted-foreground">Transaction Details</p>
           </div>
-          
+
           <div className="flex-1 space-y-6">
             {/* Activity Metrics */}
             <div className="space-y-4">
@@ -978,7 +976,7 @@ export default function TransactionHistoryPage() {
                       {velocityChange >= 0 ? '↑' : '↓'}{Math.abs(velocityChange).toFixed(0)}%
                     </span>
                   )}
-                  
+
                   {!isUsingCustomRange && (
                     <Select value={rangePreset} onValueChange={(value: RangePreset) => {
                       setRangePreset(value)
@@ -998,7 +996,7 @@ export default function TransactionHistoryPage() {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between py-2 border-b border-border/30">
                 <span className="text-sm text-muted-foreground">Sent/Received Ratio</span>
                 <span className="text-lg font-bold text-foreground">
@@ -1006,7 +1004,7 @@ export default function TransactionHistoryPage() {
                 </span>
               </div>
             </div>
-            
+
             {/* Transaction Statistics */}
             <div className="space-y-4">
               <div className="flex items-center justify-between py-2 border-b border-border/30">
@@ -1018,7 +1016,7 @@ export default function TransactionHistoryPage() {
                   <div className="text-xs text-muted-foreground">{primaryToken}</div>
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between py-2 border-b border-border/30">
                 <span className="text-sm text-muted-foreground">Largest Transaction</span>
                 <div className="text-right">
@@ -1029,7 +1027,7 @@ export default function TransactionHistoryPage() {
                 </div>
               </div>
             </div>
-            
+
             {/* Account Health Indicator */}
             <div className="mt-auto pt-4">
               <div className="bg-gradient-to-r from-muted/50 to-muted/30 rounded-lg p-4">
@@ -1041,7 +1039,7 @@ export default function TransactionHistoryPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className={`h-full transition-all duration-500 ${netFlowPercentage >= 0 ? 'bg-primary' : 'bg-destructive'}`}
                       style={{ width: `${Math.min(Math.abs(netFlowPercentage), 100)}%` }}
                     />
