@@ -364,8 +364,39 @@ export default function TransactionHistoryPage() {
       }
     }
 
+    // Initial fetch
     fetchTransactions()
+
+    // Set up polling interval to fetch new transactions every 10 seconds
+    const pollInterval = setInterval(() => {
+      // Fetch without showing loading state for polling updates
+      async function pollTransactions() {
+        try {
+          const response = await fetch(`/api/transactions/${hash}`)
+          const data = await response.json()
+
+          if (response.ok && data.success) {
+            setTransactions(data.transactions || [])
+          }
+        } catch (err) {
+          // Silently fail for polling updates to avoid disrupting UX
+          console.error("Failed to poll transactions:", err)
+        }
+      }
+      pollTransactions()
+    }, 10000) // Poll every 10 seconds
+
+    // Cleanup interval on unmount or hash change
+    return () => clearInterval(pollInterval)
   }, [hash])
+
+  // Trigger chart animation when transactions update (for real-time updates)
+  useEffect(() => {
+    if (transactions.length > 0) {
+      setChartAnimationKey((key) => key + 1)
+    }
+  }, [transactions.length])
+
 
   const toggleChartView = (view: ChartView) => {
     setChartView((prev) => (prev === view ? "both" : view))
@@ -859,7 +890,7 @@ export default function TransactionHistoryPage() {
               className="mt-8"
             >
               <div className="rounded-xl p-4 backdrop-blur-sm">
-                <ChartContainer config={chartConfig} className="h-56 w-full">
+                <ChartContainer config={chartConfig} className="h-32 w-full">
                   <LineChart
                     accessibilityLayer
                     data={chartData}
