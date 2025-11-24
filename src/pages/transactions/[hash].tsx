@@ -695,8 +695,8 @@ export default function TransactionHistoryPage() {
 
       {/* SECTION 1 & 2: Combined Layout - Cards and Analytics */}
       <div className="grid gap-6 lg:grid-cols-5">
-        {/* Left Section: Cards (3 columns) */}
-        <div className="lg:col-span-3">
+        {/* Left Section: Cards (2 columns) */}
+        <div className="lg:col-span-2 flex flex-col h-full">
           <motion.div
             className="grid gap-4 grid-cols-1 md:grid-cols-3 mb-6"
             initial="hidden"
@@ -781,8 +781,8 @@ export default function TransactionHistoryPage() {
           </motion.div>
 
           {/* Analytics Chart Section */}
-          <div className="bg-gradient-to-br from-card to-card/80 rounded-2xl border border-border/50 p-8 shadow-xl backdrop-blur-sm">
-            <div className="space-y-6">
+          <div className="bg-gradient-to-br from-card to-card/80 rounded-2xl border border-border/50 p-8 shadow-xl backdrop-blur-sm flex-1 flex flex-col">
+            <div className="space-y-6 flex-1 flex flex-col">
               <div className="flex items-center justify-between py-2">
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2">
@@ -979,145 +979,45 @@ export default function TransactionHistoryPage() {
           </div>
         </div>
 
-        {/* Right Section: Transaction Details */}
+        {/* Right Section: Recent Activities */}
         <motion.div
           variants={{
             hidden: { opacity: 0, y: 20 },
             visible: { opacity: 1, y: 0 },
           }}
           transition={{ duration: 0.4, ease: "easeOut", delay: 0.15 }}
-          className="lg:col-span-2 rounded-lg border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all duration-200 slide-in flex flex-col h-full"
+          className="lg:col-span-3 rounded-lg border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all duration-200 slide-in flex flex-col h-full"
         >
           <div className="flex items-center gap-2 mb-6">
             <div className="w-2 h-2 rounded-full bg-chart-3"></div>
-            <p className="text-xs font-medium text-muted-foreground">Transaction Details</p>
+            <p className="text-xs font-medium text-muted-foreground">Recent Activities</p>
           </div>
 
-          <div className="flex-1 space-y-6">
-            {/* Activity Metrics */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between py-2 border-b border-border/30">
-                <span className="text-sm text-muted-foreground">This Week Activity</span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-lg font-bold text-foreground">
-                    {additionalMetrics.velocityThisWeek}
-                  </span>
-                  {velocityChange !== 0 && (
-                    <span className={`text-xs font-medium ${velocityChange >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                      {velocityChange >= 0 ? '↑' : '↓'}{Math.abs(velocityChange).toFixed(0)}%
-                    </span>
-                  )}
-
-                  {!isUsingCustomRange && (
-                    <Select value={rangePreset} onValueChange={(value: RangePreset) => {
-                      setRangePreset(value)
-                      setChartAnimationKey(key => key + 1)
-                    }}>
-                      <SelectTrigger className="w-36 h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {RANGE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
+          <div className="flex-1 overflow-auto">
+            {/* Transaction Table */}
+            {transactions.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-muted/50 p-10 text-center fade-in">
+                <p className="text-lg font-semibold text-foreground">
+                  No transactions found
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Start sending or receiving transfers to see your activity here.
+                </p>
               </div>
-
-              <div className="flex items-center justify-between py-2 border-b border-border/30">
-                <span className="text-sm text-muted-foreground">Sent/Received Ratio</span>
-                <span className="text-lg font-bold text-foreground">
-                  {additionalMetrics.sentCount}/{additionalMetrics.receivedCount}
-                </span>
+            ) : (
+              <div className="w-full">
+                <DataTable
+                  columns={transactionColumns}
+                  data={transactions}
+                  searchKey="counterparty"
+                  searchPlaceholder="Search by counterparty..."
+                  enableRowSelection={true}
+                  initialPageSize={5}
+                />
               </div>
-            </div>
-
-            {/* Transaction Statistics */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between py-2 border-b border-border/30">
-                <span className="text-sm text-muted-foreground">Average Transaction</span>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-foreground">
-                    {formatDisplayAmount(additionalMetrics.avgTransactionSize)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">{primaryToken}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between py-2 border-b border-border/30">
-                <span className="text-sm text-muted-foreground">Largest Transaction</span>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-foreground">
-                    {formatDisplayAmount(additionalMetrics.largestTransaction)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">{primaryToken}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Account Health Indicator */}
-            <div className="mt-auto pt-4">
-              <div className="bg-gradient-to-r from-muted/50 to-muted/30 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-muted-foreground">Account Health</span>
-                  <span className={`text-sm font-bold ${netFlowPercentage >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                    {netFlowPercentage >= 0 ? 'Positive' : 'Negative'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-500 ${netFlowPercentage >= 0 ? 'bg-primary' : 'bg-destructive'}`}
-                      style={{ width: `${Math.min(Math.abs(netFlowPercentage), 100)}%` }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {Math.abs(netFlowPercentage).toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </motion.div>
-      </div>
-
-      {/* SECTION 3: Bottom Section - Detailed Transaction Table */}
-      <div className="flex flex-col gap-6">
-        {/* Section Header */}
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-bold tracking-tight text-foreground">
-            Recent Activities
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Detailed transaction log with search, filter, and export capabilities.
-          </p>
-        </div>
-
-        {/* Transaction Table */}
-        {transactions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-muted/50 p-10 text-center fade-in">
-            <p className="text-lg font-semibold text-foreground">
-              No transactions found
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Start sending or receiving transfers to see your activity here.
-            </p>
-          </div>
-        ) : (
-          <div className="w-full">
-            <DataTable
-              columns={transactionColumns}
-              data={transactions}
-              searchKey="counterparty"
-              searchPlaceholder="Search by counterparty..."
-              enableRowSelection={true}
-            />
-          </div>
-        )}
       </div>
     </Card>
   )
