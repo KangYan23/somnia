@@ -366,28 +366,6 @@ export default function TransactionHistoryPage() {
 
     // Initial fetch
     fetchTransactions()
-
-    // Set up polling interval to fetch new transactions every 10 seconds
-    const pollInterval = setInterval(() => {
-      // Fetch without showing loading state for polling updates
-      async function pollTransactions() {
-        try {
-          const response = await fetch(`/api/transactions/${hash}`)
-          const data = await response.json()
-
-          if (response.ok && data.success) {
-            setTransactions(data.transactions || [])
-          }
-        } catch (err) {
-          // Silently fail for polling updates to avoid disrupting UX
-          console.error("Failed to poll transactions:", err)
-        }
-      }
-      pollTransactions()
-    }, 10000) // Poll every 10 seconds
-
-    // Cleanup interval on unmount or hash change
-    return () => clearInterval(pollInterval)
   }, [hash])
 
   // Trigger chart animation when transactions update (for real-time updates)
@@ -669,7 +647,7 @@ export default function TransactionHistoryPage() {
     transactionsInRange[0]?.token || transactions[0]?.token || "SOM"
 
   return renderPage(
-    <Card className="rounded-2xl px-8 py-8 shadow-lg gap-0 space-y-10 fade-in">
+    <Card className="gap-0 space-y-10 fade-in">
       {/* Header Section */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
@@ -986,11 +964,10 @@ export default function TransactionHistoryPage() {
             visible: { opacity: 1, y: 0 },
           }}
           transition={{ duration: 0.4, ease: "easeOut", delay: 0.15 }}
-          className="lg:col-span-3 rounded-lg border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all duration-200 slide-in flex flex-col h-full"
+          className="lg:col-span-3 flex flex-col h-full"
         >
           <div className="flex items-center gap-2 mb-6">
-            <div className="w-2 h-2 rounded-full bg-chart-3"></div>
-            <p className="text-xs font-medium text-muted-foreground">Recent Activities</p>
+            <p className="text-xl font-medium text-muted-foreground">Recent Activities</p>
           </div>
 
           <div className="flex-1 overflow-auto">
