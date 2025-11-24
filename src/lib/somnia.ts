@@ -28,6 +28,15 @@ export const sdk = new SDK({
   public: publicClient as any,
   wallet: walletClient as any
 });
+
+// Create WebSocket SDK for real-time functionality
+export const wsSdk = process.env.RPC_WS_URL 
+  ? new SDK({
+      public: createPublicWsClient(process.env.RPC_WS_URL) as any,
+      wallet: walletClient as any
+    })
+  : sdk; // Fallback to regular SDK if no WS URL
+
 export { walletClient, account, publicClient };
 
 // If you want WebSocket subscription later, init a public websocket client similarly (for bot)
