@@ -1,21 +1,47 @@
 'use client';
 
 import "@rainbow-me/rainbowkit/styles.css";
-import { WagmiProvider } from "wagmi";
+import { 
+  createConfig, 
+  http,
+  WagmiProvider 
+} from "wagmi";
 import {
   RainbowKitProvider,
-  getDefaultConfig,
+  connectorsForWallets,
 } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { somniaTestnet } from "viem/chains";
+import {
+  metaMaskWallet,
+  walletConnectWallet,
+} from '@rainbow-me/rainbowkit/wallets';
 
 const queryClient = new QueryClient();
 
-const config = getDefaultConfig({
-  appName: "Somnia Example App",
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
+const connectors = connectorsForWallets(
+  [
+    {
+      groupName: 'Recommended',
+      wallets: [
+        metaMaskWallet,
+        walletConnectWallet,
+      ],
+    },
+  ],
+  {
+    appName: 'Somnia Example App',
+    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "default-project-id",
+  }
+);
+
+const config = createConfig({
+  connectors,
   chains: [somniaTestnet],
-  ssr: true, 
+  transports: {
+    [somniaTestnet.id]: http(),
+  },
+  ssr: true,
 });
 
 export const WalletProvider = ({ children }: { children: React.ReactNode }) => (
