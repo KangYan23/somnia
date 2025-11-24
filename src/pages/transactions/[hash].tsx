@@ -2,7 +2,7 @@
 "use client"
 
 import Image from "next/image"
-import { Activity, TrendingUp, Check, ArrowUp, ArrowDown, ExternalLink } from "lucide-react"
+import { Activity, TrendingUp, Check, ArrowUp, ArrowDown, ExternalLink, ChevronDown } from "lucide-react"
 import { useEffect, useMemo, useState, useRef, type KeyboardEvent } from "react"
 import { motion, animate } from "framer-motion"
 import { useRouter } from "next/router"
@@ -34,6 +34,10 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { transactionColumns, Transaction } from "@/lib/transaction-columns"
 import { StatsCard } from "@/components/ui/activity-stats-card"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { CalendarIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 const EXPLORER_URL =
   process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER_URL ||
@@ -102,12 +106,25 @@ function endOfDay(date: Date) {
 }
 
 function formatInputDate(date: Date) {
-  return date.toISOString().slice(0, 10)
+  // Format date in local timezone to avoid UTC conversion issues
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDisplayDate(date: Date) {
+  // Format date for display as "11 Nov"
+  const day = date.getDate()
+  const month = date.toLocaleDateString(undefined, { month: 'short' })
+  return `${day} ${month}`
 }
 
 function parseInputDate(value: string) {
   if (!value) return null
-  const parsed = new Date(value)
+  // Parse as local date to avoid timezone shift
+  const [year, month, day] = value.split('-').map(Number)
+  const parsed = new Date(year, month - 1, day)
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
@@ -297,6 +314,8 @@ export default function TransactionHistoryPage() {
   const [rangePreset, setRangePreset] = useState<RangePreset>("3m")
   const [chartView, setChartView] = useState<ChartView>("both")
   const [chartAnimationKey, setChartAnimationKey] = useState(0)
+  const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined)
+  const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined)
   
   // Refs for animated amount values
   const incomeAmountRef = useRef<HTMLHeadingElement>(null)
@@ -352,14 +371,19 @@ export default function TransactionHistoryPage() {
   }
 
   const renderPage = (content: React.ReactNode) => (
-    <div className="min-h-screen bg-[#f0fdf4] py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-background py-8 px-4 sm:px-6 lg:px-8 animate-in">
       <div className="w-full">{content}</div>
     </div>
   )
 
-  const selectedRange = useMemo(() => getRangeFromPreset(rangePreset), [
-    rangePreset,
-  ])
+  const selectedRange = useMemo(() => {
+    // Use custom date range if both dates are selected
+    if (customStartDate && customEndDate) {
+      return finalizeRange(customStartDate, customEndDate)
+    }
+    // Otherwise use preset range
+    return getRangeFromPreset(rangePreset)
+  }, [rangePreset, customStartDate, customEndDate])
 
   const chartData = useMemo(
     () => buildChartData(transactions, selectedRange),
@@ -589,31 +613,31 @@ export default function TransactionHistoryPage() {
     transactionsInRange[0]?.token || transactions[0]?.token || "SOM"
 
   return renderPage(
-    <Card className="rounded-2xl border border-[#e2e8f0] bg-white px-8 py-8 shadow-lg gap-0 space-y-10">
+    <Card className="rounded-2xl border border-border bg-card px-8 py-8 shadow-lg gap-0 space-y-10 fade-in">
       {/* Header Section */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <div className="mb-2">
             <Badge
               variant="outline"
-              className="rounded-sm bg-[#dff5e1] border-transparent px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#15803d]"
+              className="rounded-sm bg-secondary border-transparent px-3 py-1 text-xs font-semibold uppercase tracking-wide text-secondary-foreground"
             >
               <Activity className="h-3.5 w-3.5" />
               Transaction Dashboard
             </Badge>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-[#111827]">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Account Analytics
           </h1>
-          <p className="mt-2 text-sm text-[#4b5563]">
-            Account: <span className="font-mono font-medium text-[#374151]">{hash.slice(0, 12)}...{hash.slice(-10)}</span>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Account: <span className="font-mono font-medium text-foreground/75">{hash.slice(0, 12)}...{hash.slice(-10)}</span>
           </p>
         </div>
         <motion.a
           href={`${EXPLORER_URL}/address/${hash}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex h-9 items-center gap-2 rounded-lg bg-[#111827] px-4 text-sm font-semibold text-white transition hover:bg-[#1f2937] hover:shadow-md"
+          className="flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:bg-primary/90 hover:shadow-md zoom-in"
           whileHover={{ scale: 1.02, y: -1 }}
           transition={{ type: "spring", stiffness: 250, damping: 20 }}
         >
@@ -622,317 +646,369 @@ export default function TransactionHistoryPage() {
         </motion.a>
       </div>
 
-      {/* SECTION 1: Top-Level Summary Cards (Four Key Metrics) */}
-      <motion.div
-        className="grid gap-6 md:grid-cols-2 lg:grid-cols-4"
-        initial="hidden"
-        animate="visible"
-        variants={{
-          hidden: {},
-          visible: {
-            transition: {
-              staggerChildren: 0.1,
-              delayChildren: 0.1,
-            },
-          },
-        }}
-      >
-        {/* Card 1: Account Health/Net Flow */}
-        <motion.div
-          variants={{
-            hidden: { opacity: 0, y: 20 },
-            visible: { opacity: 1, y: 0 },
-          }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => {
-            if (chartView !== "both") {
-              toggleChartView("both")
-            }
-          }}
-        >
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
-              Account Health
-            </p>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-3xl font-bold text-[#111827]">
-                {netFlowPercentage >= 0 ? "+" : ""}{netFlowPercentage.toFixed(1)}%
-              </h2>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className={`h-6 px-2.5 text-xs font-medium ${
-                chartSummary.netFlow >= 0
-                  ? "bg-[#dff5e1] text-[#15803d] border-[#16a34a]"
-                  : "bg-[#fee2e2] text-[#dc2626] border-[#dc2626]"
-              }`}
-            >
-              {formatDisplayAmount(chartSummary.netFlow)} {primaryToken}
-            </Badge>
-            <span className="text-xs text-[#4b5563]">Net Flow</span>
-          </div>
-        </motion.div>
-
-        {/* Card 2: Total Transactions */}
-        <motion.div
-          variants={{
-            hidden: { opacity: 0, y: 20 },
-            visible: { opacity: 1, y: 0 },
-          }}
-          transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
-          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md"
-        >
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
-              Total Transactions
-            </p>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-3xl font-bold text-[#111827]">
-                {additionalMetrics.totalTransactions}
-              </h2>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="h-6 border-[#e2e8f0] bg-[#f9fafb] px-2.5 text-xs font-medium text-[#374151]"
-            >
-              {additionalMetrics.sentCount} sent · {additionalMetrics.receivedCount} received
-            </Badge>
-          </div>
-        </motion.div>
-
-        {/* Card 3: Transaction Velocity */}
-        <motion.div
-          variants={{
-            hidden: { opacity: 0, y: 20 },
-            visible: { opacity: 1, y: 0 },
-          }}
-          transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
-          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md"
-        >
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
-              This Week
-            </p>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-3xl font-bold text-[#111827]">
-                {additionalMetrics.velocityThisWeek}
-              </h2>
-              <span className="text-sm text-[#4b5563]">txns</span>
-            </div>
-          </div>
-          {velocityChange !== 0 && (
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className={`h-6 border-0 px-2.5 text-xs font-medium ${
-                  velocityChange >= 0
-                    ? "bg-[#dff5e1] text-[#15803d]"
-                    : "bg-[#fee2e2] text-[#dc2626]"
-                }`}
-              >
-                {velocityChange >= 0 ? (
-                  <ArrowUp className="h-3 w-3 inline mr-1" />
-                ) : (
-                  <ArrowDown className="h-3 w-3 inline mr-1" />
-                )}
-                {Math.abs(velocityChange).toFixed(1)}% vs last week
-              </Badge>
-            </div>
-          )}
-        </motion.div>
-
-        {/* Card 4: Total Volume */}
-        <motion.div
-          variants={{
-            hidden: { opacity: 0, y: 20 },
-            visible: { opacity: 1, y: 0 },
-          }}
-          transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
-          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md"
-        >
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
-              Total Volume
-            </p>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-3xl font-bold text-[#111827]">
-                {formatDisplayAmount(additionalMetrics.totalVolume)}
-              </h2>
-              <span className="text-sm text-[#4b5563]">{primaryToken}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="h-6 border-[#e2e8f0] bg-[#f9fafb] px-2.5 text-xs font-medium text-[#374151]"
-            >
-              Income + Expenses
-            </Badge>
-          </div>
-        </motion.div>
-      </motion.div>
-
-      {/* SECTION 2: Main Analytics Section */}
-      <div className="flex flex-col gap-6 rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563]">
-                  Cashflow Trend
-                </p>
-                <h2 className="text-2xl font-bold tracking-tight text-[#111827]">
-                  Income vs Expenses
-                </h2>
-              </div>
-              <Select
-                value={rangePreset}
-                onValueChange={(value) => setRangePreset(value as RangePreset)}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="h-8 rounded-sm border border-[#e2e8f0] px-3 text-sm font-semibold bg-white hover:bg-[#f9fafb] data-[state=open]:bg-[#f9fafb]"
-                  aria-label="Select cashflow range"
-                >
-                  <SelectValue placeholder="Last 3 months" />
-                </SelectTrigger>
-                <SelectContent
-                  align="end"
-                  position="popper"
-                  sideOffset={4}
-                  className="w-[180px] rounded-lg border border-[#e2e8f0] bg-white shadow-lg"
-                >
-                  {RANGE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-[#4b5563]">
-                {selectedRange.label}
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => toggleChartView("income")}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                    chartView === "income"
-                      ? "bg-[#16a34a] text-white"
-                      : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
-                  }`}
-                >
-                  Income
-                </button>
-                <button
-                  onClick={() => toggleChartView("expenses")}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                    chartView === "expenses"
-                      ? "bg-[#dc2626] text-white"
-                      : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
-                  }`}
-                >
-                  Expenses
-                </button>
-              </div>
-            </div>
-          </div>
+      {/* SECTION 1 & 2: Combined Layout - Cards and Analytics */}
+      <div className="grid gap-6 lg:grid-cols-5">
+        {/* Left Section: Cards (3 columns) */}
+        <div className="lg:col-span-3">
           <motion.div
-            key={chartAnimationKey}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="w-full"
+            className="grid gap-4 grid-cols-1 md:grid-cols-3 mb-6"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: {},
+              visible: {
+                transition: {
+                  staggerChildren: 0.05,
+                  delayChildren: 0.1,
+                },
+              },
+            }}
           >
-            <ChartContainer config={chartConfig} className="h-80 w-full">
-              <LineChart
-                accessibilityLayer
-                data={chartData}
-                margin={{
-                  left: 12,
-                  right: 12,
-                  top: 12,
-                  bottom: 12,
-                }}
-              >
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tick={{ fill: "#4b5563", fontSize: 12 }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tick={{ fill: "#4b5563", fontSize: 12 }}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      indicator="line"
-                      formatter={(value, name) => (
-                        <div className="flex w-full items-center justify-between">
-                          <span>
-                            {chartConfig[name as keyof typeof chartConfig]
-                              ?.label || name}
-                          </span>
-                          <span className="font-mono font-semibold">
-                            {Number(value).toLocaleString(undefined, {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}{" "}
-                            {primaryToken}
-                          </span>
-                        </div>
-                      )}
-                    />
-                  }
-                />
-                {showIncomeLine && (
-                  <Line
-                    dataKey="income"
-                    type="monotone"
-                    stroke="#16a34a"
-                    strokeWidth={2.5}
-                    dot={false}
-                  />
-                )}
-                {showExpenseLine && (
-                  <Line
-                    dataKey="expenses"
-                    type="monotone"
-                    stroke="#dc2626"
-                    strokeWidth={2.5}
-                    dot={false}
-                  />
-                )}
-              </LineChart>
-            </ChartContainer>
+            {/* Card 1: Net Flow */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:scale-[1.02] slide-in"
+              onClick={() => {
+                if (chartView !== "both") {
+                  toggleChartView("both")
+                }
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className={`w-2 h-2 rounded-full ${chartSummary.netFlow >= 0 ? 'bg-primary' : 'bg-destructive'}`}></div>
+                <p className="text-xs font-medium text-muted-foreground">Net Flow</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-lg font-bold text-foreground">
+                  {chartSummary.netFlow >= 0 ? "+" : ""}{formatDisplayAmount(Math.abs(chartSummary.netFlow))}
+                </p>
+                <p className="text-xs text-muted-foreground">{primaryToken}</p>
+              </div>
+            </motion.div>
+
+            {/* Card 2: Total Transactions */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.4, ease: "easeOut", delay: 0.05 }}
+              className="rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 slide-in"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-chart-1"></div>
+                <p className="text-xs font-medium text-muted-foreground">Total Txns</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-lg font-bold text-foreground">
+                  {additionalMetrics.totalTransactions}
+                </p>
+                <p className="text-xs text-muted-foreground">transactions</p>
+              </div>
+            </motion.div>
+
+            {/* Card 3: Total Volume */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
+              className="rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 slide-in"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-chart-2"></div>
+                <p className="text-xs font-medium text-muted-foreground">Total Volume</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-lg font-bold text-foreground">
+                  {formatDisplayAmount(additionalMetrics.totalVolume)}
+                </p>
+                <p className="text-xs text-muted-foreground">{primaryToken}</p>
+              </div>
+            </motion.div>
           </motion.div>
-          <div className="flex items-center justify-center gap-6 pt-4 border-t border-[#e2e8f0]">
-            {showIncomeLine && (
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-[#16a34a]"></div>
-                <span className="text-xs font-medium text-[#4b5563]">Income</span>
+
+          {/* Analytics Chart Section */}
+          <div className="bg-gradient-to-br from-card to-card/80 rounded-2xl border border-border/50 p-8 shadow-xl backdrop-blur-sm">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-gradient-to-r from-chart-1 to-chart-1/80"></div>
+                    <span className="text-sm font-medium text-foreground">Income</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-gradient-to-r from-chart-2 to-chart-2/80"></div>
+                    <span className="text-sm font-medium text-foreground">Expenses</span>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 justify-end">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-medium text-muted-foreground">From:</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className={cn(
+                            "px-3 py-1 text-sm rounded-md text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary flex items-center gap-0 min-w-[100px] justify-between",
+                            !customStartDate && "text-muted-foreground"
+                          )}
+                        >
+                          {customStartDate ? formatDisplayDate(customStartDate) : formatDisplayDate(selectedRange.startDate)}
+                          <ChevronDown className="h-3 w-3 opacity-50" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={customStartDate || selectedRange.startDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              setCustomStartDate(date)
+                              if (rangePreset) {
+                                setRangePreset("3m")
+                              }
+                            }
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-medium text-muted-foreground">To:</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className={cn(
+                            "px-3 py-1 text-sm rounded-md text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary flex items-center gap-0 min-w-[100px] justify-between",
+                            !customEndDate && "text-muted-foreground"
+                          )}
+                        >
+                          {customEndDate ? formatDisplayDate(customEndDate) : formatDisplayDate(selectedRange.endDate)}
+                          <ChevronDown className="h-3 w-3 opacity-50" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={customEndDate || selectedRange.endDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              setCustomEndDate(date)
+                              if (rangePreset) {
+                                setRangePreset("3m")
+                              }
+                            }
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
               </div>
-            )}
-            {showExpenseLine && (
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-[#dc2626]"></div>
-                <span className="text-xs font-medium text-[#4b5563]">Expenses</span>
+            </div>
+            
+            <motion.div
+              key={chartAnimationKey}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="mt-8"
+            >
+              <div className="rounded-xl p-4 backdrop-blur-sm">
+                <ChartContainer config={chartConfig} className="h-56 w-full">
+                  <LineChart
+                    accessibilityLayer
+                    data={chartData}
+                    margin={{
+                      left: -35,
+                      right: 16,
+                      top: 16,
+                      bottom: 16,
+                    }}
+                  >
+                    <defs>
+                      <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0.05}/>
+                      </linearGradient>
+                      <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.05}/>
+                      </linearGradient>
+                    </defs>
+                    
+                    <CartesianGrid 
+                      strokeDasharray="2 4" 
+                      stroke="hsl(var(--border))" 
+                      strokeOpacity={0.3}
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="label"
+                      axisLine={false}
+                      tickLine={false}
+                      tickMargin={12}
+                      tick={{ 
+                        fill: "hsl(var(--muted-foreground))", 
+                        fontSize: 11,
+                        fontWeight: 500 
+                      }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tickMargin={12}
+                      tick={{ 
+                        fill: "hsl(var(--muted-foreground))", 
+                        fontSize: 11,
+                        fontWeight: 500 
+                      }}
+                    />
+                    <ChartTooltip
+                      content={
+                        <div className="bg-popover/95 backdrop-blur-sm border border-border/60 rounded-lg p-3 shadow-xl">
+                          <ChartTooltipContent
+                            indicator="dot"
+                            className="text-sm"
+                            formatter={(value, name) => (
+                              <div className="flex items-center justify-between gap-4 min-w-32">
+                                <span className="font-medium">
+                                  {chartConfig[name as keyof typeof chartConfig]?.label || name}
+                                </span>
+                                <span className="font-bold text-foreground">
+                                  {Number(value).toLocaleString(undefined, {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })} {primaryToken}
+                                </span>
+                              </div>
+                            )}
+                          />
+                        </div>
+                      }
+                    />
+                    {showIncomeLine && (
+                      <Line
+                        dataKey="income"
+                        type="monotone"
+                        stroke="hsl(var(--chart-1))"
+                        strokeWidth={3}
+                        dot={{ fill: "hsl(var(--chart-1))", strokeWidth: 2, r: 4 }}
+                        activeDot={{ r: 6, stroke: "hsl(var(--chart-1))", strokeWidth: 2 }}
+                      />
+                    )}
+                    {showExpenseLine && (
+                      <Line
+                        dataKey="expenses"
+                        type="monotone"
+                        stroke="hsl(var(--chart-2))"
+                        strokeWidth={3}
+                        dot={{ fill: "hsl(var(--chart-2))", strokeWidth: 2, r: 4 }}
+                        activeDot={{ r: 6, stroke: "hsl(var(--chart-2))", strokeWidth: 2 }}
+                      />
+                    )}
+                  </LineChart>
+                </ChartContainer>
               </div>
-            )}
+            </motion.div>
           </div>
         </div>
+
+        {/* Right Section: Transaction Details */}
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0 },
+          }}
+          transition={{ duration: 0.4, ease: "easeOut", delay: 0.15 }}
+          className="lg:col-span-2 rounded-lg border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all duration-200 slide-in flex flex-col h-full"
+        >
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-2 h-2 rounded-full bg-chart-3"></div>
+            <p className="text-xs font-medium text-muted-foreground">Transaction Details</p>
+          </div>
+          
+          <div className="flex-1 space-y-6">
+            {/* Activity Metrics */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between py-2 border-b border-border/30">
+                <span className="text-sm text-muted-foreground">This Week Activity</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-bold text-foreground">
+                    {additionalMetrics.velocityThisWeek}
+                  </span>
+                  {velocityChange !== 0 && (
+                    <span className={`text-xs font-medium ${velocityChange >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                      {velocityChange >= 0 ? '↑' : '↓'}{Math.abs(velocityChange).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between py-2 border-b border-border/30">
+                <span className="text-sm text-muted-foreground">Sent/Received Ratio</span>
+                <span className="text-lg font-bold text-foreground">
+                  {additionalMetrics.sentCount}/{additionalMetrics.receivedCount}
+                </span>
+              </div>
+            </div>
+            
+            {/* Transaction Statistics */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between py-2 border-b border-border/30">
+                <span className="text-sm text-muted-foreground">Average Transaction</span>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-foreground">
+                    {formatDisplayAmount(additionalMetrics.avgTransactionSize)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{primaryToken}</div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between py-2 border-b border-border/30">
+                <span className="text-sm text-muted-foreground">Largest Transaction</span>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-foreground">
+                    {formatDisplayAmount(additionalMetrics.largestTransaction)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{primaryToken}</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Account Health Indicator */}
+            <div className="mt-auto pt-4">
+              <div className="bg-gradient-to-r from-muted/50 to-muted/30 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-muted-foreground">Account Health</span>
+                  <span className={`text-sm font-bold ${netFlowPercentage >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                    {netFlowPercentage >= 0 ? 'Positive' : 'Negative'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${netFlowPercentage >= 0 ? 'bg-primary' : 'bg-destructive'}`}
+                      style={{ width: `${Math.min(Math.abs(netFlowPercentage), 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {Math.abs(netFlowPercentage).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
 
       {/* SECTION 3: Bottom Section - Detailed Transaction Table */}
       <Separator />
@@ -940,21 +1016,21 @@ export default function TransactionHistoryPage() {
       <div className="flex flex-col gap-6">
         {/* Section Header */}
         <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-bold tracking-tight text-[#111827]">
+          <h2 className="text-xl font-bold tracking-tight text-foreground">
             Recent Activities
           </h2>
-          <p className="text-sm text-[#4b5563]">
+          <p className="text-sm text-muted-foreground">
             Detailed transaction log with search, filter, and export capabilities.
           </p>
         </div>
 
         {/* Transaction Table */}
         {transactions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#cbd5e1] bg-[#f9fafb] p-10 text-center">
-            <p className="text-lg font-semibold text-[#374151]">
+          <div className="rounded-xl border border-dashed border-border bg-muted/50 p-10 text-center fade-in">
+            <p className="text-lg font-semibold text-foreground">
               No transactions found
             </p>
-            <p className="mt-2 text-sm text-[#4b5563]">
+            <p className="mt-2 text-sm text-muted-foreground">
               Start sending or receiving transfers to see your activity here.
             </p>
           </div>
