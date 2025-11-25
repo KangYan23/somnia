@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
+
 
 // Sample model - replace this with your actual data model
 export interface Payment {
@@ -53,7 +53,9 @@ export const columns: ColumnDef<Payment>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="ID" />
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        ID
+      </div>
     ),
     cell: ({ row }) => <div className="w-[80px]">{row.getValue("id")}</div>,
     enableSorting: true,
@@ -62,7 +64,9 @@ export const columns: ColumnDef<Payment>[] = [
   {
     accessorKey: "email",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Email" />
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Email
+      </div>
     ),
     cell: ({ row }) => {
       return <div className="max-w-[200px]">{row.getValue("email")}</div>
@@ -71,7 +75,9 @@ export const columns: ColumnDef<Payment>[] = [
   {
     accessorKey: "amount",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Amount" />
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Amount
+      </div>
     ),
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue("amount"))
@@ -86,22 +92,23 @@ export const columns: ColumnDef<Payment>[] = [
   {
     accessorKey: "status",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Status
+      </div>
     ),
     cell: ({ row }) => {
       const status = row.getValue("status") as string
       return (
         <div className="capitalize">
           <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              status === "success"
-                ? "bg-green-100 text-green-800"
-                : status === "pending"
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${status === "success"
+              ? "bg-green-100 text-green-800"
+              : status === "pending"
                 ? "bg-yellow-100 text-yellow-800"
                 : status === "processing"
-                ? "bg-blue-100 text-blue-800"
-                : "bg-red-100 text-red-800"
-            }`}
+                  ? "bg-blue-100 text-blue-800"
+                  : "bg-red-100 text-red-800"
+              }`}
           >
             {status}
           </span>
@@ -115,7 +122,9 @@ export const columns: ColumnDef<Payment>[] = [
   {
     accessorKey: "createdAt",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Created At" />
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Created At
+      </div>
     ),
     cell: ({ row }) => {
       const date = new Date(row.getValue("createdAt"))

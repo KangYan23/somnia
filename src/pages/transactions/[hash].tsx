@@ -2,11 +2,12 @@
 "use client"
 
 import Image from "next/image"
-import { Activity, TrendingUp, Check, ArrowUp, ArrowDown, ExternalLink, ChevronDown } from "lucide-react"
+import { Activity, TrendingUp, Check, ArrowUp, ArrowDown, ExternalLink, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { useEffect, useMemo, useState, useRef, type KeyboardEvent } from "react"
 import { motion, animate } from "framer-motion"
 import { useRouter } from "next/router"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis, RadialBar, RadialBarChart, Area, AreaChart, Bar, BarChart } from "recharts"
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, startOfDay, endOfDay } from "date-fns"
 
 import { DataTable } from "@/components/data-table/data-table"
 import {
@@ -36,8 +37,10 @@ import { transactionColumns, Transaction } from "@/lib/transaction-columns"
 import { StatsCard } from "@/components/ui/activity-stats-card"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button } from "@/components/ui/button"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+
 import WavyBackground from "../../../components/WavyBackground"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 
@@ -95,17 +98,7 @@ function formatDisplayAmount(value: number) {
   })
 }
 
-function startOfDay(date: Date) {
-  const clone = new Date(date)
-  clone.setHours(0, 0, 0, 0)
-  return clone
-}
 
-function endOfDay(date: Date) {
-  const clone = new Date(date)
-  clone.setHours(23, 59, 59, 999)
-  return clone
-}
 
 function formatInputDate(date: Date) {
   // Format date in local timezone to avoid UTC conversion issues
@@ -330,36 +323,32 @@ export default function TransactionHistoryPage() {
   const [isUsingCustomRange, setIsUsingCustomRange] = useState(false)
 
   // Separate state for table-only date filtering
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
 
-  // Calculate unique dates with transactions for calendar indicators
-  const transactionDates = useMemo(() => {
-    const dates = new Set<string>()
-    const dateObjects: Date[] = []
+  // Generate calendar days for the current week
+  const calendarDays = useMemo(() => {
+    const end = endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+    return eachDayOfInterval({ start: currentWeekStart, end })
+  }, [currentWeekStart])
 
-    transactions.forEach(tx => {
-      const date = new Date(Number(tx.timestamp) * 1000)
-      const dateStr = date.toDateString()
-      if (!dates.has(dateStr)) {
-        dates.add(dateStr)
-        dateObjects.push(date)
-      }
-    })
+  const handlePrevWeek = () => {
+    setCurrentWeekStart(prev => addDays(prev, -7))
+  }
 
-    return dateObjects
-  }, [transactions])
+  const handleNextWeek = () => {
+    setCurrentWeekStart(prev => addDays(prev, 7))
+  }
 
   // Filter transactions for the table based on selected date
   const filteredTransactions = useMemo(() => {
-    if (!selectedDate) {
-      return transactions
-    }
-
     return transactions.filter((tx) => {
       const txDate = new Date(Number(tx.timestamp) * 1000)
-      return txDate.toDateString() === selectedDate.toDateString()
+      return isSameDay(txDate, selectedDate)
     })
   }, [transactions, selectedDate])
+
+
 
   // Refs for animated amount values
   const incomeAmountRef = useRef<HTMLHeadingElement>(null)
@@ -1161,70 +1150,110 @@ export default function TransactionHistoryPage() {
             <p className="text-xs font-medium text-muted-foreground">Transaction Analytics</p>
           </div>
 
-          <div className="flex-1 pb-0 p-6">
-            <ChartContainer
-              config={{
-                sent: {
-                  label: "Sent",
-                  color: "#059669",
-                },
-                received: {
-                  label: "Received",
-                  color: "#10b981",
-                },
-                avgTransaction: {
-                  label: "Avg Transaction",
-                  color: "#34d399",
-                },
-                largestTransaction: {
-                  label: "Largest",
-                  color: "#6ee7b7",
-                },
-                weekActivity: {
-                  label: "Week Activity",
-                  color: "#a7f3d0",
-                },
-              }}
-              className="mx-auto aspect-square max-h-[300px]"
-            >
-              <RadialBarChart
-                data={[
-                  {
-                    metric: "weekActivity",
-                    value: Math.min(additionalMetrics.velocityThisWeek * 10, 100),
-                    fill: "#a7f3d0",
+          <div className="flex flex-row items-center p-6 gap-8">
+            <div className="flex-1">
+              <ChartContainer
+                config={{
+                  sent: {
+                    label: "Sent",
+                    color: "#059669",
                   },
-                  {
-                    metric: "largestTransaction",
-                    value: Math.min((additionalMetrics.largestTransaction / additionalMetrics.totalVolume) * 100 || 0, 100),
-                    fill: "#6ee7b7",
+                  received: {
+                    label: "Received",
+                    color: "#10b981",
                   },
-                  {
-                    metric: "avgTransaction",
-                    value: Math.min((additionalMetrics.avgTransactionSize / additionalMetrics.largestTransaction) * 100 || 0, 100),
-                    fill: "#34d399",
+                  avgTransaction: {
+                    label: "Avg Transaction",
+                    color: "#34d399",
                   },
-                  {
-                    metric: "received",
-                    value: Math.min((additionalMetrics.receivedCount / additionalMetrics.totalTransactions) * 100 || 0, 100),
-                    fill: "#10b981",
+                  largestTransaction: {
+                    label: "Largest",
+                    color: "#6ee7b7",
                   },
-                  {
-                    metric: "sent",
-                    value: Math.min((additionalMetrics.sentCount / additionalMetrics.totalTransactions) * 100 || 0, 100),
-                    fill: "#059669",
+                  weekActivity: {
+                    label: "Week Activity",
+                    color: "#a7f3d0",
                   },
-                ]}
-                innerRadius={30}
-                outerRadius={110}
+                }}
+                className="mx-auto aspect-square max-h-[250px]"
               >
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent hideLabel nameKey="metric" />}
-                />
-                <RadialBar dataKey="value" background />
-              </RadialBarChart>
-            </ChartContainer>
+                <RadialBarChart
+                  data={[
+                    {
+                      metric: "weekActivity",
+                      value: Math.min(additionalMetrics.velocityThisWeek * 10, 100),
+                      fill: "#a7f3d0",
+                    },
+                    {
+                      metric: "largestTransaction",
+                      value: Math.min((additionalMetrics.largestTransaction / additionalMetrics.totalVolume) * 100 || 0, 100),
+                      fill: "#6ee7b7",
+                    },
+                    {
+                      metric: "avgTransaction",
+                      value: Math.min((additionalMetrics.avgTransactionSize / additionalMetrics.largestTransaction) * 100 || 0, 100),
+                      fill: "#34d399",
+                    },
+                    {
+                      metric: "received",
+                      value: Math.min((additionalMetrics.receivedCount / additionalMetrics.totalTransactions) * 100 || 0, 100),
+                      fill: "#10b981",
+                    },
+                    {
+                      metric: "sent",
+                      value: Math.min((additionalMetrics.sentCount / additionalMetrics.totalTransactions) * 100 || 0, 100),
+                      fill: "#059669",
+                    },
+                  ]}
+                  innerRadius={30}
+                  outerRadius={110}
+                >
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent hideLabel nameKey="metric" />}
+                  />
+                  <RadialBar dataKey="value" background />
+                </RadialBarChart>
+              </ChartContainer>
+            </div>
+
+            <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-6">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-md" style={{ backgroundColor: "#059669" }}></div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Sent</span>
+                  <span className="font-bold text-sm">{additionalMetrics.sentCount}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-md" style={{ backgroundColor: "#10b981" }}></div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Received</span>
+                  <span className="font-bold text-sm">{additionalMetrics.receivedCount}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-md" style={{ backgroundColor: "#34d399" }}></div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Avg Transaction</span>
+                  <span className="font-bold text-sm">{additionalMetrics.avgTransactionSize.toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-md" style={{ backgroundColor: "#6ee7b7" }}></div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Largest</span>
+                  <span className="font-bold text-sm">{additionalMetrics.largestTransaction.toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 col-span-2">
+                <div className="w-3 h-3 rounded-md" style={{ backgroundColor: "#a7f3d0" }}></div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Week Activity</span>
+                  <span className="font-bold text-sm">{additionalMetrics.velocityThisWeek.toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 text-sm p-6 pt-0">
@@ -1247,94 +1276,86 @@ export default function TransactionHistoryPage() {
           </div>
         </motion.div>
       </div>
-
-      {/* SECTION 3: Bottom Section - Recent Activities with Date Filter */}
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* Left Section: Date Filter (2 columns) */}
-        <motion.div
-          variants={{
-            hidden: { opacity: 0, y: 20 },
-            visible: { opacity: 1, y: 0 },
-          }}
-          initial="hidden"
-          animate="visible"
-          transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
-          className="lg:col-span-2 rounded-lg border border-border bg-card shadow-sm hover:shadow-md transition-all duration-200 slide-in flex flex-col h-fit"
-        >
-          <div className="flex items-center gap-2 p-6 pb-4">
-            <div className="w-2 h-2 rounded-sm bg-chart-1"></div>
-            <p className="text-xs font-medium text-muted-foreground">Filter Activities</p>
-            {selectedDate && (
-              <button
-                onClick={() => setSelectedDate(undefined)}
-                className="ml-auto px-2 py-1 text-xs rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
-              >
-                Clear
-              </button>
-            )}
+      {/* SECTION 3: Recent Activities Card */}
+      <Card className="col-span-full shadow-sm hover:shadow-md transition-all duration-200 mt-6">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
+          <div className="flex flex-col gap-1">
+            <CardTitle className="text-xl font-bold">Recent Activities</CardTitle>
+            <CardDescription>
+              Detailed transaction log with search, filter, and export capabilities.
+            </CardDescription>
           </div>
 
-          <div className="flex-1 p-6 pt-0 space-y-6">
-            {/* Date Filter */}
-            <div className="space-y-4">
-              <div className="border border-border rounded-lg p-3 bg-muted/30 flex justify-center">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  disabled={(date) =>
-                    date > new Date() || date < new Date("1900-01-01")
-                  }
-                  modifiers={{
-                    hasTransaction: transactionDates
-                  }}
-                  modifiersClassNames={{
-                    hasTransaction: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:bg-emerald-500 after:rounded-full"
-                  }}
-                  className="w-full"
-                />
-              </div>
+          {/* Horizontal Date Selector */}
+          <div className="flex items-center gap-2 ml-auto">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handlePrevWeek}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+
+            <div className="flex items-center gap-1">
+              {calendarDays.map((date) => {
+                const isSelected = isSameDay(date, selectedDate)
+                return (
+                  <button
+                    key={date.toISOString()}
+                    onClick={() => setSelectedDate(date)}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-2 rounded-xl transition-all min-w-[3rem]",
+                      isSelected
+                        ? "bg-primary text-primary-foreground shadow-md scale-105"
+                        : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <span className="text-[10px] font-medium uppercase tracking-wider opacity-80">
+                      {format(date, "EEE")}
+                    </span>
+                    <span className={cn(
+                      "text-lg font-bold mt-0.5",
+                      isSelected && "text-primary-foreground"
+                    )}>
+                      {format(date, "d")}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
-          </div>
-        </motion.div>
 
-        {/* Right Section: Recent Activities Table (3 columns) */}
-        <div className="lg:col-span-3">
-          <div className="flex flex-col gap-6">
-            {/* Section Header */}
-            <div className="flex flex-col gap-1">
-              <h2 className="text-xl font-bold tracking-tight text-foreground">
-                Recent Activities
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Detailed transaction log with search, filter, and export capabilities.
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleNextWeek}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filteredTransactions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-muted/50 p-10 text-center fade-in">
+              <p className="text-lg font-semibold text-foreground">
+                No transactions found
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Start sending or receiving transfers to see your activity here.
               </p>
             </div>
-
-            {/* Transaction Table */}
-            {filteredTransactions.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-muted/50 p-10 text-center fade-in">
-                <p className="text-lg font-semibold text-foreground">
-                  No transactions found
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Start sending or receiving transfers to see your activity here.
-                </p>
-              </div>
-            ) : (
-              <div className="w-full">
-                <DataTable
-                  columns={transactionColumns}
-                  data={filteredTransactions}
-                  searchKey="counterparty"
-                  searchPlaceholder="Search by counterparty..."
-                  enableRowSelection={true}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+          ) : (
+            <DataTable
+              columns={transactionColumns}
+              data={filteredTransactions}
+              searchKey="counterparty"
+              searchPlaceholder="Search by counterparty..."
+              enableRowSelection={true}
+            />
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
