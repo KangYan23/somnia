@@ -60,6 +60,11 @@ export function DataTable<TData, TValue>({
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     enableRowSelection: enableRowSelection,
+    initialState: {
+      pagination: {
+        pageSize: 6,
+      },
+    },
     state: {
       sorting,
       columnFilters,

@@ -112,7 +112,7 @@ export function DataTableToolbar<TData>({
             onChange={(event) =>
               searchColumn.setFilterValue(event.target.value)
             }
-            className="h-8 w-[400px] lg:w-[550px]"
+            className="h-8 flex-1"
           />
         )}
         <div className="flex flex-wrap items-center gap-2">
@@ -180,51 +180,7 @@ export function DataTableToolbar<TData>({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          {timestampColumn && (
-            <Popover
-              open={timestampPopoverOpen}
-              onOpenChange={setTimestampPopoverOpen}
-            >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  id="timestamp-filter"
-                  className="h-8 border px-3 data-[state=open]:bg-accent hover:bg-transparent"
-                >
-                  <CalendarDays className="mr-2 h-4 w-4 text-slate-500" />
-                  <span className="truncate text-sm">
-                    {selectedTimestampDate
-                      ? selectedTimestampDate.toLocaleDateString()
-                      : "Select date"}
-                  </span>
-                  <ChevronDownIcon className="ml-2 h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-auto overflow-hidden p-0">
-                <div className="bg-white p-4">
-                  <Calendar
-                    mode="single"
-                    selected={selectedTimestampDate}
-                    captionLayout="dropdown"
-                    onSelect={(date) => applyTimestampFilter(date)}
-                  />
-                  {(timestampFilterValue.start ||
-                    timestampFilterValue.end) && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="mt-3 w-full justify-center text-xs font-semibold text-rose-500 hover:bg-red-400"
-                        onClick={handleTimestampClear}
-                      >
-                        CLEAR
-                      </Button>
-                    )}
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
+
         </div>
       </div>
 

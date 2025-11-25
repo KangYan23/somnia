@@ -6,7 +6,7 @@ import { Activity, TrendingUp, Check, ArrowUp, ArrowDown, ExternalLink, ChevronD
 import { useEffect, useMemo, useState, useRef, type KeyboardEvent } from "react"
 import { motion, animate } from "framer-motion"
 import { useRouter } from "next/router"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis, RadialBar, RadialBarChart, Area, AreaChart } from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis, RadialBar, RadialBarChart, Area, AreaChart, Bar, BarChart } from "recharts"
 
 import { DataTable } from "@/components/data-table/data-table"
 import {
@@ -328,6 +328,38 @@ export default function TransactionHistoryPage() {
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined)
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined)
   const [isUsingCustomRange, setIsUsingCustomRange] = useState(false)
+
+  // Separate state for table-only date filtering
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
+
+  // Calculate unique dates with transactions for calendar indicators
+  const transactionDates = useMemo(() => {
+    const dates = new Set<string>()
+    const dateObjects: Date[] = []
+
+    transactions.forEach(tx => {
+      const date = new Date(Number(tx.timestamp) * 1000)
+      const dateStr = date.toDateString()
+      if (!dates.has(dateStr)) {
+        dates.add(dateStr)
+        dateObjects.push(date)
+      }
+    })
+
+    return dateObjects
+  }, [transactions])
+
+  // Filter transactions for the table based on selected date
+  const filteredTransactions = useMemo(() => {
+    if (!selectedDate) {
+      return transactions
+    }
+
+    return transactions.filter((tx) => {
+      const txDate = new Date(Number(tx.timestamp) * 1000)
+      return txDate.toDateString() === selectedDate.toDateString()
+    })
+  }, [transactions, selectedDate])
 
   // Refs for animated amount values
   const incomeAmountRef = useRef<HTMLHeadingElement>(null)
@@ -1216,39 +1248,92 @@ export default function TransactionHistoryPage() {
         </motion.div>
       </div>
 
-      {/* SECTION 3: Bottom Section - Detailed Transaction Table */}
-      <div className="flex flex-col gap-6">
-        {/* Section Header */}
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-bold tracking-tight text-foreground">
-            Recent Activities
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Detailed transaction log with search, filter, and export capabilities.
-          </p>
-        </div>
+      {/* SECTION 3: Bottom Section - Recent Activities with Date Filter */}
+      <div className="grid gap-6 lg:grid-cols-5">
+        {/* Left Section: Date Filter (2 columns) */}
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0 },
+          }}
+          initial="hidden"
+          animate="visible"
+          transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
+          className="lg:col-span-2 rounded-lg border border-border bg-card shadow-sm hover:shadow-md transition-all duration-200 slide-in flex flex-col h-fit"
+        >
+          <div className="flex items-center gap-2 p-6 pb-4">
+            <div className="w-2 h-2 rounded-sm bg-chart-1"></div>
+            <p className="text-xs font-medium text-muted-foreground">Filter Activities</p>
+            {selectedDate && (
+              <button
+                onClick={() => setSelectedDate(undefined)}
+                className="ml-auto px-2 py-1 text-xs rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
 
-        {/* Transaction Table */}
-        {transactions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-muted/50 p-10 text-center fade-in">
-            <p className="text-lg font-semibold text-foreground">
-              No transactions found
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Start sending or receiving transfers to see your activity here.
-            </p>
+          <div className="flex-1 p-6 pt-0 space-y-6">
+            {/* Date Filter */}
+            <div className="space-y-4">
+              <div className="border border-border rounded-lg p-3 bg-muted/30 flex justify-center">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  disabled={(date) =>
+                    date > new Date() || date < new Date("1900-01-01")
+                  }
+                  modifiers={{
+                    hasTransaction: transactionDates
+                  }}
+                  modifiersClassNames={{
+                    hasTransaction: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:bg-emerald-500 after:rounded-full"
+                  }}
+                  className="w-full"
+                />
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="w-full">
-            <DataTable
-              columns={transactionColumns}
-              data={transactions}
-              searchKey="counterparty"
-              searchPlaceholder="Search by counterparty..."
-              enableRowSelection={true}
-            />
+        </motion.div>
+
+        {/* Right Section: Recent Activities Table (3 columns) */}
+        <div className="lg:col-span-3">
+          <div className="flex flex-col gap-6">
+            {/* Section Header */}
+            <div className="flex flex-col gap-1">
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                Recent Activities
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Detailed transaction log with search, filter, and export capabilities.
+              </p>
+            </div>
+
+            {/* Transaction Table */}
+            {filteredTransactions.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-muted/50 p-10 text-center fade-in">
+                <p className="text-lg font-semibold text-foreground">
+                  No transactions found
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Start sending or receiving transfers to see your activity here.
+                </p>
+              </div>
+            ) : (
+              <div className="w-full">
+                <DataTable
+                  columns={transactionColumns}
+                  data={filteredTransactions}
+                  searchKey="counterparty"
+                  searchPlaceholder="Search by counterparty..."
+                  enableRowSelection={true}
+                />
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
