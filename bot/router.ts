@@ -2,6 +2,7 @@ import { handleTransfer } from "../services/transfer/transfer";
 import { handleCheckBalance } from "../services/balance/balance";
 import { handleTransactionHistory } from "../services/transaction-history/handler";
 import { handleSwap } from "../services/swap/swap";
+import { handleSetPriceAlert } from "../services/price-alert/handler";
 
 export async function routeAction(action: any, senderPhone?: string) {
   if (!action) return null; // No structured action → AI-only message
@@ -74,12 +75,11 @@ export async function routeAction(action: any, senderPhone?: string) {
       return await handleTransactionHistory(action);
 
     case "price_alert":
-      return (
-        `⏰ Price alert set:\n` +
-        `Token: ${action.token}\n` +
-        `Threshold: ${action.threshold_percent}% drop\n` +
-        `(Alert service not implemented yet)`
-      );
+      // Ensure sender_phone is set if provided
+      if (senderPhone && !action.sender_phone) {
+        action.sender_phone = senderPhone;
+      }
+      return await handleSetPriceAlert(action);
 
     default:
       return "⚠️ Unknown action received.";

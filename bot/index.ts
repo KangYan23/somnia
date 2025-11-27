@@ -1,18 +1,16 @@
 import "./env-setup"; // Must be first!
 import express from "express";
-import axios from "axios";
 import { processNLP } from "./nlp";
 import { routeAction } from "./router";
 import { normalizePhone } from "../src/lib/phone";
 import { startEventSubscribers } from "./subscriber";
 import { handleSwap } from "../services/swap/swap";
+import { sendWhatsAppMessage, sendWhatsAppInteractiveMessage } from "./whatsapp";
 
 
 const app = express();
 app.use(express.json());
 
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN!;
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID!;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN!;
 const PORT = process.env.PORT || 3000;
 
@@ -195,56 +193,6 @@ app.post("/webhook", async (req, res) => {
 
   res.sendStatus(200);
 });
-
-// ------------------------------
-// 5. SEND MESSAGE TO USER
-// ------------------------------
-async function sendWhatsAppMessage(to: string, msg: string) {
-  try {
-    const url = `https://graph.facebook.com/v17.0/${PHONE_NUMBER_ID}/messages`;
-
-    const payload = {
-      messaging_product: "whatsapp",
-      to,
-      text: { body: msg }
-    };
-
-    await axios.post(url, payload, {
-      headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` }
-    });
-
-    console.log("✅ WhatsApp message sent!");
-  } catch (e: any) {
-    console.error("❌ Sending message failed:", e.response?.data || e);
-  }
-}
-
-async function sendWhatsAppInteractiveMessage(to: string, bodyText: string, action: any) {
-  try {
-    const url = `https://graph.facebook.com/v17.0/${PHONE_NUMBER_ID}/messages`;
-
-    const payload = {
-      messaging_product: "whatsapp",
-      to,
-      type: "interactive",
-      interactive: {
-        type: "button",
-        body: {
-          text: bodyText
-        },
-        action: action
-      }
-    };
-
-    await axios.post(url, payload, {
-      headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` }
-    });
-
-    console.log("✅ WhatsApp interactive message sent!");
-  } catch (e: any) {
-    console.error("❌ Sending interactive message failed:", e.response?.data || e);
-  }
-}
 
 app.listen(PORT, async () => {
   console.log(`🚀 WhatsApp bot running on port ${PORT}`);

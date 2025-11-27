@@ -45,12 +45,13 @@ User says: "transaction history", "recent transactions", "show my transactions",
 }
 -------------------------------------------------------
 ACTION: price alert
-User says: "alert me when STT drops 10%"
+User says: "alert me when STT drops 10%" or "alert me if STT drops to 0.23"
 {
   "action": "price_alert",
   "token": "SOMI",
   "direction": "drop",
-  "threshold_percent": <number>
+  "threshold_percent": <number> (optional if target_price is set),
+  "target_price": <number> (optional if threshold_percent is set)
 }
 -------------------------------------------------------
 ACTION: swap
@@ -59,6 +60,20 @@ User says: "swap 0.1 STT to USDC", "exchange 10 USDC for STT", "trade 5 STT to U
   "action": "swap",
   "amount": <number>,
   "tokenFrom": "STT" | "USDC",
+  "tokenTo": "STT" | "USDC"
+}
+-------------------------------------------------------
+ACTION: swap (buy/sell shortcuts)
+User says: "buy STT", "buy some STT", "sell STT", "sell some SOMI"
+- "buy [TOKEN]" -> swap from USDC to [TOKEN]
+- "sell [TOKEN]" -> swap from [TOKEN] to USDC
+- Default amount: 1 (if user says "some" or doesn't specify)
+- DEMO RULE: If user says "SOMI", treat it as "STT" for the swap.
+
+{
+  "action": "swap",
+  "amount": <number>,
+  "tokenFrom": "USDC" | "STT",
   "tokenTo": "STT" | "USDC"
 }
 -------------------------------------------------------

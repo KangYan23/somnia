@@ -28,10 +28,15 @@ export const sdk = new SDK({
   public: publicClient as any,
   wallet: walletClient as any
 });
-export { walletClient, account, publicClient };
+export { walletClient, account, publicClient, somniaTestnet };
 
 // If you want WebSocket subscription later, init a public websocket client similarly (for bot)
 export function createPublicWsClient(wsUrl: string) {
   const somniaChainWithWs = buildSomniaChainWithWs(wsUrl);
   return createPublicClient({ chain: somniaChainWithWs, transport: webSocket(wsUrl) });
 }
+
+export const wsSdk = RPC_WS_URL ? new SDK({
+  public: createPublicWsClient(RPC_WS_URL) as any,
+  wallet: walletClient as any
+}) : sdk; // Fallback to HTTP sdk if no WS URL (might not support streams)

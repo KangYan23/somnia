@@ -9,10 +9,14 @@
  */
 
 import { SDK } from '@somnia-chain/streams';
-import { createPublicClient, webSocket } from 'viem';
+import { createPublicClient, webSocket, decodeAbiParameters } from 'viem';
 import { startTransferNotifier } from './transfer-notifier';
 import dotenv from 'dotenv';
 import { buildSomniaChainWithWs } from '../src/lib/somniaChain';
+import fs from 'fs';
+import path from 'path';
+import { sendWhatsAppMessage } from './whatsapp';
+
 dotenv.config();
 
 // Create WebSocket client for real-time event subscriptions
@@ -142,6 +146,87 @@ export async function startEventSubscribers() {
     }
     // Don't throw - allow transfer notifier to start even if this fails
     console.warn('⚠️  Continuing without UserRegistrationBroadcast subscription...\n');
+  }
+
+  // Subscribe to PriceAlert events
+  console.log('📡 Subscribing to PriceAlert...');
+  try {
+    await sdk.streams.subscribe({
+      somniaStreamsEventId: 'PriceAlert',
+      ethCalls: [],
+      onlyPushChanges: false,
+      onData: async (payload: any) => {
+        console.log('🚨 Price Alert Event Received:', JSON.stringify(payload, null, 2));
+        
+        // Extract phoneHash from topics (it's the first topic)
+        const phoneHash = payload?.result?.topics?.[1] || payload?.topics?.[0];
+        
+        if (!phoneHash) {
+          console.warn('⚠️ PriceAlert received but no phoneHash found in topics');
+          return;
+        }
+
+        console.log(`📱 Alert for phoneHash: ${phoneHash}`);
+
+        // Look up phone number
+        const userMapPath = path.join(process.cwd(), 'data', 'user-map.json');
+        if (fs.existsSync(userMapPath)) {
+          const userMap = JSON.parse(fs.readFileSync(userMapPath, 'utf-8'));
+          const phoneNumber = userMap[phoneHash];
+
+          if (phoneNumber) {
+            console.log(`✅ Found phone number for hash: ${phoneNumber}`);
+            
+            // Decode event data to get details
+            // data: currentPrice, minPrice, maxPrice, tokenSymbol
+            try {
+              const dataHex = payload?.result?.data || payload?.data;
+              if (dataHex) {
+                const decoded = decodeAbiParameters(
+                  [
+                    { type: "uint256", name: "currentPrice" },
+                    { type: "uint256", name: "minPrice" },
+                    { type: "uint256", name: "maxPrice" },
+                    { type: "string", name: "tokenSymbol" }
+                  ],
+                  dataHex
+                );
+                
+                const currentPrice = Number(decoded[0]) / 1e18;
+                const minPrice = Number(decoded[1]) / 1e18;
+                const maxPrice = Number(decoded[2]) / 1e18;
+                const tokenSymbol = decoded[3];
+
+                let msg = `🚨 *PRICE ALERT: ${tokenSymbol}*\n\n`;
+                msg += `💰 Current Price: $${currentPrice.toFixed(4)}\n`;
+                
+                if (currentPrice < minPrice) {
+                  msg += `📉 Price dropped below your threshold of $${minPrice.toFixed(4)}`;
+                } else if (currentPrice > maxPrice) {
+                  msg += `📈 Price rose above your threshold of $${maxPrice.toFixed(4)}`;
+                } else {
+                  msg += `⚠️ Price is outside range $${minPrice.toFixed(4)} - $${maxPrice.toFixed(4)}`;
+                }
+
+                await sendWhatsAppMessage(phoneNumber, msg);
+              } else {
+                await sendWhatsAppMessage(phoneNumber, `🚨 Price Alert triggered for your account! Check the market.`);
+              }
+            } catch (decodeError) {
+              console.error('❌ Error decoding price alert data:', decodeError);
+              await sendWhatsAppMessage(phoneNumber, `🚨 Price Alert triggered! (Error decoding details)`);
+            }
+          } else {
+            console.warn(`⚠️ No phone number found for hash ${phoneHash}`);
+          }
+        } else {
+          console.warn('⚠️ User map file not found');
+        }
+      }
+    } as any);
+    console.log('✅ PriceAlert subscriber started\n');
+  } catch (error: any) {
+    console.error('❌ Failed to subscribe to PriceAlert:', error.message);
   }
 
   // Start transfer notification subscriber

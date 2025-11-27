@@ -5,6 +5,8 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { somniaTestnet } from 'viem/chains';
 import 'dotenv/config';
 
+import { buildSomniaChainWithWs } from '../lib/somniaChain';
+
 async function main() {
   try {
     console.log("🚀 Starting Price Alert Subscription Service...");
@@ -12,6 +14,7 @@ async function main() {
     
     // Get environment variables
     const rpcUrl = process.env.RPC_URL;
+    const wsUrl = process.env.RPC_WS_URL || "wss://dream-rpc.somnia.network/ws";
     const rawPrivateKey = process.env.PRIVATE_KEY;
     
     if (!rpcUrl || !rawPrivateKey) {
@@ -23,10 +26,14 @@ async function main() {
     const privateKey = (`0x${pkClean}`) as `0x${string}`;
     const account = privateKeyToAccount(privateKey);
     
-    // Create WebSocket client for subscriptions
-    const wsClient = createPublicClient({ 
-      chain: somniaTestnet, 
-      transport: webSocket("wss://dream-rpc-ws.somnia.network") 
+    // Create client for subscriptions
+    // Using WebSocket transport as required by the SDK
+    console.log(`🔌 Connecting to WS: ${wsUrl}`);
+    const somniaChainWithWs = buildSomniaChainWithWs(wsUrl);
+    
+    const publicClient = createPublicClient({ 
+      chain: somniaChainWithWs, 
+      transport: webSocket(wsUrl) 
     });
     
     // Create wallet client
@@ -36,9 +43,9 @@ async function main() {
       transport: http(rpcUrl) 
     });
     
-    // Initialize SDK with WebSocket support
+    // Initialize SDK
     const wsSDK = new SDK({
-      public: wsClient as any,
+      public: publicClient as any,
       wallet: walletClient as any
     });
     
