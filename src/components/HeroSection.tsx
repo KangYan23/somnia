@@ -148,7 +148,7 @@ export default function HeroSection({
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>{alertTitle}</AlertDialogTitle>
-                <AlertDialogDescription>
+                <AlertDialogDescription className="break-all">
                   {alertMessage}
                 </AlertDialogDescription>
               </AlertDialogHeader>
