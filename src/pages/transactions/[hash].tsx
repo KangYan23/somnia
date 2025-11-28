@@ -2,11 +2,12 @@
 "use client"
 
 import Image from "next/image"
-import { Activity, TrendingUp, Check, ArrowUp, ArrowDown, ExternalLink } from "lucide-react"
+import { Activity, TrendingUp, Check, ArrowUp, ArrowDown, ExternalLink, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { useEffect, useMemo, useState, useRef, type KeyboardEvent } from "react"
 import { motion, animate } from "framer-motion"
 import { useRouter } from "next/router"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis, RadialBar, RadialBarChart, Area, AreaChart, Bar, BarChart } from "recharts"
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, startOfDay, endOfDay } from "date-fns"
 
 import { DataTable } from "@/components/data-table/data-table"
 import {
@@ -34,7 +35,14 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { transactionColumns, Transaction } from "@/lib/transaction-columns"
 import { StatsCard } from "@/components/ui/activity-stats-card"
-import styles from "./transactions.module.css"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button } from "@/components/ui/button"
+import { CalendarIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+import WavyBackground from "../../../components/WavyBackground"
+import { ConnectButton } from "@rainbow-me/rainbowkit"
 
 const EXPLORER_URL =
   process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER_URL ||
@@ -43,11 +51,11 @@ const EXPLORER_URL =
 const chartConfig = {
   income: {
     label: "Income",
-    color: "var(--chart-1)",
+    color: "#16a34a",
   },
   expenses: {
     label: "Expenses",
-    color: "var(--chart-2)",
+    color: "#dff5e1",
   },
 } satisfies ChartConfig
 
@@ -90,25 +98,28 @@ function formatDisplayAmount(value: number) {
   })
 }
 
-function startOfDay(date: Date) {
-  const clone = new Date(date)
-  clone.setHours(0, 0, 0, 0)
-  return clone
-}
 
-function endOfDay(date: Date) {
-  const clone = new Date(date)
-  clone.setHours(23, 59, 59, 999)
-  return clone
-}
 
 function formatInputDate(date: Date) {
-  return date.toISOString().slice(0, 10)
+  // Format date in local timezone to avoid UTC conversion issues
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDisplayDate(date: Date) {
+  // Format date for display as "11 Nov"
+  const day = date.getDate()
+  const month = date.toLocaleDateString(undefined, { month: 'short' })
+  return `${day} ${month}`
 }
 
 function parseInputDate(value: string) {
   if (!value) return null
-  const parsed = new Date(value)
+  // Parse as local date to avoid timezone shift
+  const [year, month, day] = value.split('-').map(Number)
+  const parsed = new Date(year, month - 1, day)
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
@@ -236,19 +247,28 @@ function finalizeRange(start: Date, end: Date): ChartRange {
 
 function getRangeFromPreset(preset: RangePreset): ChartRange {
   const now = endOfDay(new Date())
-  const start = startOfDay(new Date(now))
+  // Default start date is November 1st, 2025
+  let start = new Date(now)
+  start.setFullYear(2025)
+  start.setMonth(10) // November is month 10 (0-indexed)
+  start.setDate(1)
+  start = startOfDay(start)
 
+  // For presets, adjust end date as needed
   switch (preset) {
     case "7d":
+      start = new Date(now)
       start.setDate(start.getDate() - 6)
+      start = startOfDay(start)
       break
     case "30d":
+      start = new Date(now)
       start.setDate(start.getDate() - 29)
+      start = startOfDay(start)
       break
     case "3m":
     default:
-      start.setMonth(start.getMonth() - 2)
-      start.setDate(1)
+      // Keep November 1st as start for default
       break
   }
 
@@ -298,6 +318,37 @@ export default function TransactionHistoryPage() {
   const [rangePreset, setRangePreset] = useState<RangePreset>("3m")
   const [chartView, setChartView] = useState<ChartView>("both")
   const [chartAnimationKey, setChartAnimationKey] = useState(0)
+  const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined)
+  const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined)
+  const [isUsingCustomRange, setIsUsingCustomRange] = useState(false)
+
+  // Separate state for table-only date filtering
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
+
+  // Generate calendar days for the current week
+  const calendarDays = useMemo(() => {
+    const end = endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+    return eachDayOfInterval({ start: currentWeekStart, end })
+  }, [currentWeekStart])
+
+  const handlePrevWeek = () => {
+    setCurrentWeekStart(prev => addDays(prev, -7))
+  }
+
+  const handleNextWeek = () => {
+    setCurrentWeekStart(prev => addDays(prev, 7))
+  }
+
+  // Filter transactions for the table based on selected date
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((tx) => {
+      const txDate = new Date(Number(tx.timestamp) * 1000)
+      return isSameDay(txDate, selectedDate)
+    })
+  }, [transactions, selectedDate])
+
+
 
   // Refs for animated amount values
   const incomeAmountRef = useRef<HTMLHeadingElement>(null)
@@ -334,8 +385,39 @@ export default function TransactionHistoryPage() {
       }
     }
 
+    // Initial fetch
     fetchTransactions()
+
+    // Set up polling interval to fetch new transactions every 10 seconds
+    const pollInterval = setInterval(() => {
+      // Fetch without showing loading state for polling updates
+      async function pollTransactions() {
+        try {
+          const response = await fetch(`/api/transactions/${hash}`)
+          const data = await response.json()
+
+          if (response.ok && data.success) {
+            setTransactions(data.transactions || [])
+          }
+        } catch (err) {
+          // Silently fail for polling updates to avoid disrupting UX
+          console.error("Failed to poll transactions:", err)
+        }
+      }
+      pollTransactions()
+    }, 10000) // Poll every 10 seconds
+
+    // Cleanup interval on unmount or hash change
+    return () => clearInterval(pollInterval)
   }, [hash])
+
+  // Trigger chart animation when transactions update (for real-time updates)
+  useEffect(() => {
+    if (transactions.length > 0) {
+      setChartAnimationKey((key) => key + 1)
+    }
+  }, [transactions.length])
+
 
   const toggleChartView = (view: ChartView) => {
     setChartView((prev) => (prev === view ? "both" : view))
@@ -353,14 +435,32 @@ export default function TransactionHistoryPage() {
   }
 
   const renderPage = (content: React.ReactNode) => (
-    <div className={`${styles.transactionTheme} min-h-screen bg-background py-8 px-4 sm:px-6 lg:px-8`}>
-      <div className="w-full">{content}</div>
+    <div className="min-h-screen relative overflow-hidden">
+      <div className="absolute inset-0 z-0">
+        <WavyBackground />
+      </div>
+      <div className="relative z-10 py-8 px-4 sm:px-6 lg:px-8">
+        <div className="w-full">{content}</div>
+      </div>
     </div>
   )
 
-  const selectedRange = useMemo(() => getRangeFromPreset(rangePreset), [
-    rangePreset,
-  ])
+  const selectedRange = useMemo(() => {
+    // Use custom date range if both dates are selected or if using custom range
+    if (isUsingCustomRange && customStartDate && customEndDate) {
+      return finalizeRange(customStartDate, customEndDate)
+    } else if (isUsingCustomRange && customStartDate && !customEndDate) {
+      // If only start date is selected, use start date to current date
+      return finalizeRange(customStartDate, new Date())
+    } else if (isUsingCustomRange && !customStartDate && customEndDate) {
+      // If only end date is selected, use 30 days before end date to end date
+      const startDate = new Date(customEndDate)
+      startDate.setDate(startDate.getDate() - 30)
+      return finalizeRange(startDate, customEndDate)
+    }
+    // Otherwise use preset range
+    return getRangeFromPreset(rangePreset)
+  }, [rangePreset, customStartDate, customEndDate, isUsingCustomRange])
 
   const chartData = useMemo(
     () => buildChartData(transactions, selectedRange),
@@ -590,384 +690,672 @@ export default function TransactionHistoryPage() {
     transactionsInRange[0]?.token || transactions[0]?.token || "SOM"
 
   return renderPage(
-    <Card className="rounded-2xl border border-[#e2e8f0] bg-white px-8 py-8 shadow-lg gap-0 space-y-10">
+    <div className="space-y-10 fade-in">
       {/* Header Section */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
-          <div className="mb-2">
-            <Badge
-              variant="outline"
-              className="rounded-sm bg-[#dff5e1] border-transparent px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#15803d]"
-            >
-              <Activity className="h-3.5 w-3.5" />
-              Transaction Dashboard
-            </Badge>
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight text-[#111827]">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Account Analytics
           </h1>
-          <p className="mt-2 text-sm text-[#4b5563]">
-            Account: <span className="font-mono font-medium text-[#374151]">{hash.slice(0, 12)}...{hash.slice(-10)}</span>
-          </p>
         </div>
-        <motion.a
-          href={`${EXPLORER_URL}/address/${hash}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-9 items-center gap-2 rounded-lg bg-[#111827] px-4 text-sm font-semibold text-white transition hover:bg-[#1f2937] hover:shadow-md"
-          whileHover={{ scale: 1.02, y: -1 }}
-          transition={{ type: "spring", stiffness: 250, damping: 20 }}
-        >
-          <ExternalLink className="h-4 w-4" />
-          Explorer
-        </motion.a>
+        <div className="flex items-center gap-3">
+          <ConnectButton />
+          <motion.a
+            href={`${EXPLORER_URL}/address/${hash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-9 items-center gap-2 rounded-lg bg-[#000000] px-4 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:bg-primary/90 hover:shadow-md zoom-in"
+            whileHover={{ scale: 1.02, y: -1 }}
+            transition={{ type: "spring", stiffness: 250, damping: 20 }}
+          >
+            <ExternalLink className="h-4 w-4" />
+            Explorer
+          </motion.a>
+        </div>
       </div>
 
-      {/* SECTION 1: Top-Level Summary Cards (Four Key Metrics) */}
-      <motion.div
-        className="grid gap-6 md:grid-cols-2 lg:grid-cols-4"
-        initial="hidden"
-        animate="visible"
-        variants={{
-          hidden: {},
-          visible: {
-            transition: {
-              staggerChildren: 0.1,
-              delayChildren: 0.1,
-            },
-          },
-        }}
-      >
-        {/* Card 1: Account Health/Net Flow */}
-        <motion.div
-          variants={{
-            hidden: { opacity: 0, y: 20 },
-            visible: { opacity: 1, y: 0 },
-          }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => {
-            if (chartView !== "both") {
-              toggleChartView("both")
-            }
-          }}
-        >
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
-              Account Health
-            </p>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-3xl font-bold text-[#111827]">
-                {netFlowPercentage >= 0 ? "+" : ""}{netFlowPercentage.toFixed(1)}%
-              </h2>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className={`h-6 px-2.5 text-xs font-medium ${chartSummary.netFlow >= 0
-                ? "bg-[#dff5e1] text-[#15803d] border-[#16a34a]"
-                : "bg-[#fee2e2] text-[#dc2626] border-[#dc2626]"
-                }`}
-            >
-              {formatDisplayAmount(chartSummary.netFlow)} {primaryToken}
-            </Badge>
-            <span className="text-xs text-[#4b5563]">Net Flow</span>
-          </div>
-        </motion.div>
-
-        {/* Card 2: Total Transactions */}
-        <motion.div
-          variants={{
-            hidden: { opacity: 0, y: 20 },
-            visible: { opacity: 1, y: 0 },
-          }}
-          transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
-          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md"
-        >
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
-              Total Transactions
-            </p>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-3xl font-bold text-[#111827]">
-                {additionalMetrics.totalTransactions}
-              </h2>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="h-6 border-[#e2e8f0] bg-[#f9fafb] px-2.5 text-xs font-medium text-[#374151]"
-            >
-              {additionalMetrics.sentCount} sent · {additionalMetrics.receivedCount} received
-            </Badge>
-          </div>
-        </motion.div>
-
-        {/* Card 3: Transaction Velocity */}
-        <motion.div
-          variants={{
-            hidden: { opacity: 0, y: 20 },
-            visible: { opacity: 1, y: 0 },
-          }}
-          transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
-          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md"
-        >
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
-              This Week
-            </p>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-3xl font-bold text-[#111827]">
-                {additionalMetrics.velocityThisWeek}
-              </h2>
-              <span className="text-sm text-[#4b5563]">txns</span>
-            </div>
-          </div>
-          {velocityChange !== 0 && (
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className={`h-6 border-0 px-2.5 text-xs font-medium ${velocityChange >= 0
-                  ? "bg-[#dff5e1] text-[#15803d]"
-                  : "bg-[#fee2e2] text-[#dc2626]"
-                  }`}
-              >
-                {velocityChange >= 0 ? (
-                  <ArrowUp className="h-3 w-3 inline mr-1" />
-                ) : (
-                  <ArrowDown className="h-3 w-3 inline mr-1" />
-                )}
-                {Math.abs(velocityChange).toFixed(1)}% vs last week
-              </Badge>
-            </div>
-          )}
-        </motion.div>
-
-        {/* Card 4: Total Volume */}
-        <motion.div
-          variants={{
-            hidden: { opacity: 0, y: 20 },
-            visible: { opacity: 1, y: 0 },
-          }}
-          transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
-          className="rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md"
-        >
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563] mb-1">
-              Total Volume
-            </p>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-3xl font-bold text-[#111827]">
-                {formatDisplayAmount(additionalMetrics.totalVolume)}
-              </h2>
-              <span className="text-sm text-[#4b5563]">{primaryToken}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="h-6 border-[#e2e8f0] bg-[#f9fafb] px-2.5 text-xs font-medium text-[#374151]"
-            >
-              Income + Expenses
-            </Badge>
-          </div>
-        </motion.div>
-      </motion.div>
-
-      {/* SECTION 2: Main Analytics Section */}
-      <div className="flex flex-col gap-6 rounded-xl border-2 border-[#e2e8f0] bg-white p-6 shadow-md">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#4b5563]">
-                Cashflow Trend
-              </p>
-              <h2 className="text-2xl font-bold tracking-tight text-[#111827]">
-                Income vs Expenses
-              </h2>
-            </div>
-            <Select
-              value={rangePreset}
-              onValueChange={(value) => setRangePreset(value as RangePreset)}
-            >
-              <SelectTrigger
-                size="sm"
-                className="h-8 rounded-sm border border-[#e2e8f0] px-3 text-sm font-semibold bg-white hover:bg-[#f9fafb] data-[state=open]:bg-[#f9fafb]"
-                aria-label="Select cashflow range"
-              >
-                <SelectValue placeholder="Last 3 months" />
-              </SelectTrigger>
-              <SelectContent
-                align="end"
-                position="popper"
-                sideOffset={4}
-                className="w-[180px] rounded-lg border border-[#e2e8f0] bg-white shadow-lg"
-              >
-                {RANGE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-3">
-            <p className="text-sm text-[#4b5563]">
-              {selectedRange.label}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => toggleChartView("income")}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${chartView === "income"
-                  ? "bg-[#16a34a] text-white"
-                  : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
-                  }`}
-              >
-                Income
-              </button>
-              <button
-                onClick={() => toggleChartView("expenses")}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${chartView === "expenses"
-                  ? "bg-[#dc2626] text-white"
-                  : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
-                  }`}
-              >
-                Expenses
-              </button>
-            </div>
-          </div>
-        </div>
-        <motion.div
-          key={chartAnimationKey}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-          className="w-full"
-        >
-          <ChartContainer config={chartConfig} className="h-80 w-full">
-            <LineChart
-              accessibilityLayer
-              data={chartData}
-              margin={{
-                left: 12,
-                right: 12,
-                top: 12,
-                bottom: 12,
+      {/* SECTION 1 & 2: Combined Layout - Cards and Analytics */}
+      <div className="grid gap-6 lg:grid-cols-5">
+        {/* Left Section: Cards (3 columns) */}
+        <div className="lg:col-span-3">
+          <motion.div
+            className="grid gap-4 grid-cols-1 md:grid-cols-3 mb-6"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: {},
+              visible: {
+                transition: {
+                  staggerChildren: 0.05,
+                  delayChildren: 0.1,
+                },
+              },
+            }}
+          >
+            {/* Card 1: Net Flow */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:scale-[1.02] slide-in"
+              onClick={() => {
+                if (chartView !== "both") {
+                  toggleChartView("both")
+                }
               }}
             >
-              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis
-                dataKey="label"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                tick={{ fill: "#4b5563", fontSize: 12 }}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                tick={{ fill: "#4b5563", fontSize: 12 }}
-              />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    indicator="line"
-                    formatter={(value, name) => (
-                      <div className="flex w-full items-center justify-between">
-                        <span>
-                          {chartConfig[name as keyof typeof chartConfig]
-                            ?.label || name}
-                        </span>
-                        <span className="font-mono font-semibold">
-                          {Number(value).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
-                          {primaryToken}
-                        </span>
-                      </div>
+              <div className="flex items-start justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground">Net Flow</p>
+                <span className={`text-xs font-semibold ${chartSummary.netFlow >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {chartSummary.netFlow >= 0 ? '↑' : '↓'}{Math.abs(trend.percentage)}%
+                </span>
+              </div>
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-2xl font-bold text-foreground mb-1">
+                    {chartSummary.netFlow >= 0 ? "+" : ""}{formatDisplayAmount(Math.abs(chartSummary.netFlow))}
+                  </p>
+                  <p className="text-xs text-muted-foreground">from {transactionsInRange.length} (last 30 days)</p>
+                </div>
+                <div className="flex-1 max-w-[120px]">
+                  <ChartContainer
+                    config={{
+                      netFlow: {
+                        label: "Net Flow",
+                        color: chartSummary.netFlow >= 0 ? "#059669" : "#ef4444",
+                      },
+                    }}
+                    className="h-[50px] w-full"
+                  >
+                    <AreaChart
+                      data={chartData.slice(-7).map((point) => ({
+                        value: point.income - point.expenses,
+                      }))}
+                      margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
+                    >
+                      <defs>
+                        <linearGradient id="fillNetFlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop
+                            offset="5%"
+                            stopColor={chartSummary.netFlow >= 0 ? "#059669" : "#ef4444"}
+                            stopOpacity={0.8}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor={chartSummary.netFlow >= 0 ? "#059669" : "#ef4444"}
+                            stopOpacity={0.1}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke={chartSummary.netFlow >= 0 ? "#059669" : "#ef4444"}
+                        fill="url(#fillNetFlow)"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Card 2: Total Transactions */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.4, ease: "easeOut", delay: 0.05 }}
+              className="rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 slide-in"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground">Total Txns</p>
+                <span className={`text-xs font-semibold ${velocityChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {velocityChange >= 0 ? '↑' : '↓'}{Math.abs(velocityChange).toFixed(0)}%
+                </span>
+              </div>
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-2xl font-bold text-foreground mb-1">
+                    {additionalMetrics.totalTransactions}
+                  </p>
+                  <p className="text-xs text-muted-foreground">from {transactionsInRange.length} (last 30 days)</p>
+                </div>
+                <div className="flex-1 max-w-[120px]">
+                  <ChartContainer
+                    config={{
+                      transactions: {
+                        label: "Transactions",
+                        color: "#10b981",
+                      },
+                    }}
+                    className="h-[50px] w-full"
+                  >
+                    <AreaChart
+                      data={chartData.slice(-7).map((point, idx) => ({
+                        value: transactionsInRange.filter((tx) => {
+                          const txDate = new Date(tx.timestamp * 1000);
+                          const pointDate = new Date(point.key);
+                          return txDate.toDateString() === pointDate.toDateString();
+                        }).length,
+                      }))}
+                      margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
+                    >
+                      <defs>
+                        <linearGradient id="fillTransactions" x1="0" y1="0" x2="0" y2="1">
+                          <stop
+                            offset="5%"
+                            stopColor="#10b981"
+                            stopOpacity={0.8}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#10b981"
+                            stopOpacity={0.1}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#10b981"
+                        fill="url(#fillTransactions)"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Card 3: Total Volume */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
+              className="rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 slide-in"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground">Total Volume</p>
+                <span className={`text-xs font-semibold ${chartSummary.incomeChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {chartSummary.incomeChange >= 0 ? '↑' : '↓'}{Math.abs(chartSummary.incomeChange).toFixed(0)}%
+                </span>
+              </div>
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-2xl font-bold text-foreground mb-1">
+                    {formatDisplayAmount(additionalMetrics.totalVolume)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">from {transactionsInRange.length} (last 30 days)</p>
+                </div>
+                <div className="flex-1 max-w-[120px]">
+                  <ChartContainer
+                    config={{
+                      volume: {
+                        label: "Volume",
+                        color: "#34d399",
+                      },
+                    }}
+                    className="h-[50px] w-full"
+                  >
+                    <AreaChart
+                      data={chartData.slice(-7).map((point) => ({
+                        value: point.income + point.expenses,
+                      }))}
+                      margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
+                    >
+                      <defs>
+                        <linearGradient id="fillVolume" x1="0" y1="0" x2="0" y2="1">
+                          <stop
+                            offset="5%"
+                            stopColor="#34d399"
+                            stopOpacity={0.8}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#34d399"
+                            stopOpacity={0.1}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#34d399"
+                        fill="url(#fillVolume)"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+
+          {/* Analytics Chart Section */}
+          <div className="bg-gradient-to-br from-card to-card/80 rounded-2xl border border-border/50 p-8 shadow-xl backdrop-blur-sm">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ background: '#16a34a' }}></div>
+                    <span className="text-sm font-medium text-foreground">Income</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ background: '#dff5e1', border: '1px solid #16a34a' }}></div>
+                    <span className="text-sm font-medium text-foreground">Expenses</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 justify-end">
+                  {isUsingCustomRange && (
+                    <button
+                      onClick={() => {
+                        setIsUsingCustomRange(false)
+                        setCustomStartDate(undefined)
+                        setCustomEndDate(undefined)
+                        setRangePreset("30d")
+                        setChartAnimationKey(key => key + 1)
+                      }}
+                      className="px-2 py-1 text-xs rounded-md bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Reset
+                    </button>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-medium text-muted-foreground">From:</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className={cn(
+                            "px-3 py-1 text-sm rounded-md focus:outline-none flex items-center gap-2 min-w-[100px] justify-between",
+                            customStartDate && isUsingCustomRange ? "bg-white text-black" : "bg-white text-black"
+                          )}
+                          style={{}}
+                        >
+                          {(customStartDate && isUsingCustomRange) ? formatDisplayDate(customStartDate) : formatDisplayDate(selectedRange.startDate)}
+                          <ChevronDown className="h-3 w-3 opacity-50" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={customStartDate || selectedRange.startDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              setCustomStartDate(date)
+                              setIsUsingCustomRange(true)
+                              setChartAnimationKey(key => key + 1) // Trigger chart animation
+                            }
+                          }}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-medium text-muted-foreground">To:</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className={cn(
+                            "px-3 py-1 text-sm rounded-md focus:outline-none flex items-center gap-2 min-w-[100px] justify-between",
+                            customEndDate && isUsingCustomRange ? "bg-white text-black" : "bg-white text-black"
+                          )}
+                          style={{}}
+                        >
+                          {(customEndDate && isUsingCustomRange) ? formatDisplayDate(customEndDate) : formatDisplayDate(selectedRange.endDate)}
+                          <ChevronDown className="h-3 w-3 opacity-50" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={customEndDate || selectedRange.endDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              setCustomEndDate(date)
+                              setIsUsingCustomRange(true)
+                              setChartAnimationKey(key => key + 1) // Trigger chart animation
+                            }
+                          }}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <motion.div
+              key={chartAnimationKey}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="mt-8"
+            >
+              <div className="rounded-xl p-4 backdrop-blur-sm">
+                <ChartContainer config={chartConfig} className="h-32 w-full">
+                  <LineChart
+                    accessibilityLayer
+                    data={chartData}
+                    margin={{
+                      left: -35,
+                      right: 12,
+                    }}
+                  >
+                    <CartesianGrid vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tick={{
+                        fill: "hsl(var(--muted-foreground))",
+                        fontSize: 11,
+                        fontWeight: 500
+                      }}
+                      tickFormatter={(value) => value.slice(0, 6)}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tickMargin={12}
+                      tick={{
+                        fill: "hsl(var(--muted-foreground))",
+                        fontSize: 11,
+                        fontWeight: 500
+                      }}
+                      domain={[0, 6]}
+                      ticks={[0, 2, 4, 6]}
+                    />
+                    <ChartTooltip
+                      cursor={false}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload || !payload.length) return null;
+                        return (
+                          <div
+                            className="rounded-lg shadow-lg bg-white/95 border border-border/60 p-3 min-w-[120px]"
+                            style={{ backdropFilter: 'blur(6px)' }}
+                          >
+                            <div className="font-semibold mb-2 text-sm text-foreground">{label}</div>
+                            {payload.map((entry, idx) => (
+                              <div key={entry.dataKey} className="flex items-center gap-2 mb-1">
+                                <span
+                                  className="inline-block w-3 h-3 rounded"
+                                  style={{ background: chartConfig[entry.dataKey as keyof typeof chartConfig]?.color || entry.color }}
+                                ></span>
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  {chartConfig[String(entry.dataKey) as keyof typeof chartConfig]?.label || entry.name}
+                                </span>
+                                <span className="ml-auto text-sm font-bold text-foreground">
+                                  {Number(entry.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }}
+                    />
+                    {showIncomeLine && (
+                      <Line
+                        dataKey="income"
+                        type="monotone"
+                        stroke="#16a34a"
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, stroke: "#16a34a", strokeWidth: 2 }}
+                      />
                     )}
-                  />
-                }
-              />
-              {showIncomeLine && (
-                <Line
-                  dataKey="income"
-                  type="monotone"
-                  stroke="#16a34a"
-                  strokeWidth={2.5}
-                  dot={false}
-                />
-              )}
-              {showExpenseLine && (
-                <Line
-                  dataKey="expenses"
-                  type="monotone"
-                  stroke="#dc2626"
-                  strokeWidth={2.5}
-                  dot={false}
-                />
-              )}
-            </LineChart>
-          </ChartContainer>
-        </motion.div>
-        <div className="flex items-center justify-center gap-6 pt-4 border-t border-[#e2e8f0]">
-          {showIncomeLine && (
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-[#16a34a]"></div>
-              <span className="text-xs font-medium text-[#4b5563]">Income</span>
-            </div>
-          )}
-          {showExpenseLine && (
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-[#dc2626]"></div>
-              <span className="text-xs font-medium text-[#4b5563]">Expenses</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* SECTION 3: Bottom Section - Detailed Transaction Table */}
-      <Separator />
-
-      <div className="flex flex-col gap-6">
-        {/* Section Header */}
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-bold tracking-tight text-[#111827]">
-            Recent Activities
-          </h2>
-          <p className="text-sm text-[#4b5563]">
-            Detailed transaction log with search, filter, and export capabilities.
-          </p>
-        </div>
-
-        {/* Transaction Table */}
-        {transactions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#cbd5e1] bg-[#f9fafb] p-10 text-center">
-            <p className="text-lg font-semibold text-[#374151]">
-              No transactions found
-            </p>
-            <p className="mt-2 text-sm text-[#4b5563]">
-              Start sending or receiving transfers to see your activity here.
-            </p>
+                    {showExpenseLine && (
+                      <Line
+                        dataKey="expenses"
+                        type="monotone"
+                        stroke="#dff5e1"
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, stroke: "#dff5e1", strokeWidth: 2 }}
+                      />
+                    )}
+                  </LineChart>
+                </ChartContainer>
+              </div>
+            </motion.div>
           </div>
-        ) : (
-          <div className="w-full">
+        </div>
+
+        {/* Right Section: Transaction Details - Radial Chart */}
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0 },
+          }}
+          transition={{ duration: 0.4, ease: "easeOut", delay: 0.15 }}
+          className="lg:col-span-2 rounded-lg border border-border bg-card shadow-sm hover:shadow-md transition-all duration-200 slide-in flex flex-col h-full"
+        >
+          <div className="flex items-center gap-2 p-6 pb-0">
+            <div className="w-2 h-2 rounded-full bg-chart-3"></div>
+            <p className="text-xs font-medium text-muted-foreground">Transaction Analytics</p>
+          </div>
+
+          <div className="flex flex-row items-center p-6 gap-8">
+            <div className="flex-1">
+              <ChartContainer
+                config={{
+                  sent: {
+                    label: "Sent",
+                    color: "#059669",
+                  },
+                  received: {
+                    label: "Received",
+                    color: "#10b981",
+                  },
+                  avgTransaction: {
+                    label: "Avg Transaction",
+                    color: "#34d399",
+                  },
+                  largestTransaction: {
+                    label: "Largest",
+                    color: "#6ee7b7",
+                  },
+                  weekActivity: {
+                    label: "Week Activity",
+                    color: "#a7f3d0",
+                  },
+                }}
+                className="mx-auto aspect-square max-h-[250px]"
+              >
+                <RadialBarChart
+                  data={[
+                    {
+                      metric: "weekActivity",
+                      value: Math.min(additionalMetrics.velocityThisWeek * 10, 100),
+                      fill: "#a7f3d0",
+                    },
+                    {
+                      metric: "largestTransaction",
+                      value: Math.min((additionalMetrics.largestTransaction / additionalMetrics.totalVolume) * 100 || 0, 100),
+                      fill: "#6ee7b7",
+                    },
+                    {
+                      metric: "avgTransaction",
+                      value: Math.min((additionalMetrics.avgTransactionSize / additionalMetrics.largestTransaction) * 100 || 0, 100),
+                      fill: "#34d399",
+                    },
+                    {
+                      metric: "received",
+                      value: Math.min((additionalMetrics.receivedCount / additionalMetrics.totalTransactions) * 100 || 0, 100),
+                      fill: "#10b981",
+                    },
+                    {
+                      metric: "sent",
+                      value: Math.min((additionalMetrics.sentCount / additionalMetrics.totalTransactions) * 100 || 0, 100),
+                      fill: "#059669",
+                    },
+                  ]}
+                  innerRadius={30}
+                  outerRadius={110}
+                >
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent hideLabel nameKey="metric" />}
+                  />
+                  <RadialBar dataKey="value" background />
+                </RadialBarChart>
+              </ChartContainer>
+            </div>
+
+            <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-6">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-md" style={{ backgroundColor: "#059669" }}></div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Sent</span>
+                  <span className="font-bold text-sm">{additionalMetrics.sentCount}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-md" style={{ backgroundColor: "#10b981" }}></div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Received</span>
+                  <span className="font-bold text-sm">{additionalMetrics.receivedCount}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-md" style={{ backgroundColor: "#34d399" }}></div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Avg Transaction</span>
+                  <span className="font-bold text-sm">{additionalMetrics.avgTransactionSize.toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-md" style={{ backgroundColor: "#6ee7b7" }}></div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Largest</span>
+                  <span className="font-bold text-sm">{additionalMetrics.largestTransaction.toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 col-span-2">
+                <div className="w-3 h-3 rounded-md" style={{ backgroundColor: "#a7f3d0" }}></div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Week Activity</span>
+                  <span className="font-bold text-sm">{additionalMetrics.velocityThisWeek.toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 text-sm p-6 pt-0">
+            <div className="flex items-center gap-2 leading-none font-medium">
+              {velocityChange >= 0 ? (
+                <>
+                  Trending up by {Math.abs(velocityChange).toFixed(1)}% this week
+                  <TrendingUp className="h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  Trending down by {Math.abs(velocityChange).toFixed(1)}% this week
+                  <ArrowDown className="h-4 w-4" />
+                </>
+              )}
+            </div>
+            <div className="text-muted-foreground leading-none">
+              Showing transaction metrics for {selectedRange.label}
+            </div>
+          </div>
+        </motion.div>
+      </div>
+      {/* SECTION 3: Recent Activities Card */}
+      <Card className="col-span-full shadow-sm hover:shadow-md transition-all duration-200 mt-6">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
+          <div className="flex flex-col gap-1">
+            <CardTitle className="text-xl font-bold">Recent Activities</CardTitle>
+            <CardDescription>
+              Detailed transaction log with search, filter, and export capabilities.
+            </CardDescription>
+          </div>
+
+          {/* Horizontal Date Selector */}
+          <div className="flex items-center gap-2 ml-auto">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handlePrevWeek}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+
+            <div className="flex items-center gap-1">
+              {calendarDays.map((date) => {
+                const isSelected = isSameDay(date, selectedDate)
+                return (
+                  <button
+                    key={date.toISOString()}
+                    onClick={() => setSelectedDate(date)}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-2 rounded-xl transition-all min-w-[3rem]",
+                      isSelected
+                        ? "bg-primary text-primary-foreground shadow-md scale-105"
+                        : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <span className="text-[10px] font-medium uppercase tracking-wider opacity-80">
+                      {format(date, "EEE")}
+                    </span>
+                    <span className={cn(
+                      "text-lg font-bold mt-0.5",
+                      isSelected && "text-primary-foreground"
+                    )}>
+                      {format(date, "d")}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleNextWeek}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filteredTransactions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-muted/50 p-10 text-center fade-in">
+              <p className="text-lg font-semibold text-foreground">
+                No transactions found
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Start sending or receiving transfers to see your activity here.
+              </p>
+            </div>
+          ) : (
             <DataTable
               columns={transactionColumns}
-              data={transactions}
+              data={filteredTransactions}
               searchKey="counterparty"
               searchPlaceholder="Search by counterparty..."
               enableRowSelection={true}
             />
-          </div>
-        )}
-      </div>
-    </Card>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
-
