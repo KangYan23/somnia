@@ -33,7 +33,7 @@ const ERC20_ABI = [
 const TOKEN_REGISTRY: Record<string, `0x${string}`> = {
   // Add your ERC-20 token addresses here
   // Example: "USDT": "0x...",
-  // Example: "USDC": "0x...",
+  "USDC": "0x8e13b7D5EB18F1c5e271B73005e90E7Dd3316127",
 };
 
 // Load token addresses from environment variables (format: TOKEN_ADDRESS_USDT=0x...)
@@ -167,30 +167,6 @@ async function checkAllBalances(walletAddress: `0x${string}`): Promise<string> {
     // Skip errors - only show successful balances
   }
 
-  // 2. Check Sepolia ETH
-  try {
-    const sepoliaClient = getPublicClientForChain("SEPOLIA");
-    const sepoliaBalance = await sepoliaClient.getBalance({ address: walletAddress });
-    const sepoliaFormatted = formatEther(sepoliaBalance);
-    if (sepoliaFormatted !== "0") {
-      balances.push(`🌐 *Sepolia Testnet*\n   ETH: *${sepoliaFormatted}*\n`);
-    }
-  } catch (e: any) {
-    // Skip errors - only show successful balances
-  }
-
-  // 3. Check Ethereum Mainnet ETH
-  try {
-    const mainnetClient = getPublicClientForChain("ETHEREUM");
-    const mainnetBalance = await mainnetClient.getBalance({ address: walletAddress });
-    const mainnetFormatted = formatEther(mainnetBalance);
-    if (mainnetFormatted !== "0") {
-      balances.push(`🌐 *Ethereum Mainnet*\n   ETH: *${mainnetFormatted}*\n`);
-    }
-  } catch (e: any) {
-    // Skip errors - only show successful balances
-  }
-
   // 4. Check all registered ERC-20 tokens on Somnia
   const registeredTokens = Object.keys(TOKEN_REGISTRY);
   if (registeredTokens.length > 0) {
@@ -220,7 +196,6 @@ async function checkAllBalances(walletAddress: `0x${string}`): Promise<string> {
         const balanceFormatted = formatUnits(balance, decimals);
         if (balanceFormatted !== "0") {
           if (!hasTokenSection) {
-            balances.push(`\n📄 *ERC-20 Tokens (Somnia)*\n`);
             hasTokenSection = true;
           }
           balances.push(`   ${tokenSymbol}: *${balanceFormatted}*\n`);
@@ -230,6 +205,32 @@ async function checkAllBalances(walletAddress: `0x${string}`): Promise<string> {
       }
     }
   }
+
+  // 2. Check Sepolia ETH
+  try {
+    const sepoliaClient = getPublicClientForChain("SEPOLIA");
+    const sepoliaBalance = await sepoliaClient.getBalance({ address: walletAddress });
+    const sepoliaFormatted = formatEther(sepoliaBalance);
+    if (sepoliaFormatted !== "0") {
+      balances.push(`🌐 *Sepolia Testnet*\n   ETH: *${sepoliaFormatted}*\n`);
+    }
+  } catch (e: any) {
+    // Skip errors - only show successful balances
+  }
+
+  // 3. Check Ethereum Mainnet ETH
+  try {
+    const mainnetClient = getPublicClientForChain("ETHEREUM");
+    const mainnetBalance = await mainnetClient.getBalance({ address: walletAddress });
+    const mainnetFormatted = formatEther(mainnetBalance);
+    if (mainnetFormatted !== "0") {
+      balances.push(`🌐 *Ethereum Mainnet*\n   ETH: *${mainnetFormatted}*\n`);
+    }
+  } catch (e: any) {
+    // Skip errors - only show successful balances
+  }
+
+  
 
   // If no balances found, show a message
   if (balances.length === 2) { // Only header lines

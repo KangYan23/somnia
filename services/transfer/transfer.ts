@@ -67,6 +67,13 @@ export async function handleTransfer(action: {
   const eventAmountWei = parseEther(String(amount));
   
   // STEP 1: Create TransferIntentCreated event
+  // Get initial nonce before emitting event
+  const initialNonce = await publicClient.getTransactionCount({
+    address: account.address,
+    blockTag: 'pending'
+  });
+  console.log(`📊 Initial nonce before emitEvents: ${initialNonce}`);
+
   try {
     const intentEncodedData = encodeAbiParameters(
       [
@@ -85,8 +92,33 @@ export async function handleTransfer(action: {
         data: intentEncodedData
       }
     ]);
+    
+    // Wait for the event transaction to be included in mempool (nonce should increase)
+    // Poll the nonce until it increases, indicating the transaction is pending
+    let attempts = 0;
+    const maxWaitAttempts = 10;
+    const waitInterval = 500; // Check every 500ms
+    
+    while (attempts < maxWaitAttempts) {
+      await new Promise(resolve => setTimeout(resolve, waitInterval));
+      const currentNonce = await publicClient.getTransactionCount({
+        address: account.address,
+        blockTag: 'pending'
+      });
+      
+      if (currentNonce > initialNonce) {
+        console.log(`✅ Event transaction is in mempool (nonce increased from ${initialNonce} to ${currentNonce})`);
+        break;
+      }
+      attempts++;
+    }
+    
+    if (attempts >= maxWaitAttempts) {
+      console.warn(`⚠️ Event transaction may not be in mempool yet after ${maxWaitAttempts * waitInterval}ms, proceeding anyway`);
+    }
   } catch (intentError: any) {
     console.warn("⚠️ Failed to emit TransferIntentCreated event:", intentError.message);
+    // Continue with transfer even if event emission fails
   }
   
   // STEP 2: Perform blockchain transfer
@@ -94,15 +126,63 @@ export async function handleTransfer(action: {
     throw new Error(`Unsupported token: ${token}. Only SOMI and STT (native) transfers are supported.`);
   }
   
-  const txHash = await walletClient.sendTransaction({
-    to: recipientWallet as `0x${string}`,
-    value: eventAmountWei,
-    account,
-    chain: null,
-    kzg: undefined,
-  });
+  // Retry logic for transaction sending with nonce management
+  let txHash: `0x${string}` | null = null;
+  const maxRetries = 5;
+  let retryCount = 0;
   
-  console.log(`⏳ Transfer sent: ${txHash}`);
+  while (!txHash && retryCount < maxRetries) {
+    try {
+      // Fetch fresh nonce before each attempt (including pending transactions)
+      const currentNonce = await publicClient.getTransactionCount({
+        address: account.address,
+        blockTag: 'pending'
+      });
+      
+      if (retryCount > 0) {
+        // Wait before retrying to allow pending transactions to be mined
+        const waitTime = 2000 * retryCount;
+        console.log(`🔄 Retry ${retryCount}: Waiting ${waitTime}ms, current nonce: ${currentNonce}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        
+        // Fetch nonce again after waiting
+        const freshNonce = await publicClient.getTransactionCount({
+          address: account.address,
+          blockTag: 'pending'
+        });
+        console.log(`📊 Fresh nonce after wait: ${freshNonce}`);
+      } else {
+        console.log(`📊 Initial nonce for ${account.address}: ${currentNonce}`);
+      }
+      
+      txHash = await walletClient.sendTransaction({
+        to: recipientWallet as `0x${string}`,
+        value: eventAmountWei,
+        account,
+        chain: null,
+        kzg: undefined,
+      });
+      
+      console.log(`⏳ Transfer sent: ${txHash}`);
+      break;
+    } catch (error: any) {
+      retryCount++;
+      const isNonceError = error.message?.toLowerCase().includes('nonce') || 
+                          error.message?.toLowerCase().includes('nonce too low') ||
+                          error.message?.toLowerCase().includes('replacement transaction underpriced');
+      
+      if (isNonceError && retryCount < maxRetries) {
+        console.warn(`⚠️ Nonce/transaction error on attempt ${retryCount}, retrying... (${error.message})`);
+        continue;
+      } else {
+        throw new Error(`Failed to send transfer after ${retryCount} attempts: ${error.message}`);
+      }
+    }
+  }
+  
+  if (!txHash) {
+    throw new Error('Failed to send transfer: Could not get transaction hash after all retries');
+  }
   
   // Wait for transaction confirmation
   const receipt = await publicClient.waitForTransactionReceipt({ 

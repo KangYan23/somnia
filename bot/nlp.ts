@@ -17,7 +17,7 @@ User says: "bind wallet 0xABC123..." or "link my wallet 0x..."
 }
 -------------------------------------------------------
 ACTION: transfer
-User says: "send 0.5 STT to 0177163313" or "transfer 1 SOMI to +60123456789"
+User says: "send 0.5 STT to 0177163313"
 {
   "action": "transfer",
   "amount": <number>,

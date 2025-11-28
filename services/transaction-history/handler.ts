@@ -51,7 +51,7 @@ export async function handleTransactionHistory(action: {
   
   // Generate link to view all transactions
   // Use the phone hash to create a shareable link
-  const baseUrl = process.env.WEBAPP_BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const baseUrl = process.env.WEBAPP_BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001';
   const transactionsLink = `${baseUrl}/transactions/${phoneHash}`;
   
   // Add link at the end if we have 10 transactions (showing only latest 10)

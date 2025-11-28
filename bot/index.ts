@@ -101,6 +101,47 @@ app.post("/webhook", async (req, res) => {
   console.log("💬 User said:", text);
 
   // ------------------------------
+  // 2.5. GREETING MESSAGE FOR NEW USERS
+  // ------------------------------
+  // Only trigger on actual greetings at the start of the message
+  const textLower = text.toLowerCase().trim();
+  const greetingPatterns = [
+    /^hi\b/i,
+    /^hello\b/i,
+    /^hey\b/i,
+    /^start\b/i,
+    /^begin\b/i,
+    /^help\b/i,
+    /^info\b/i,
+    /^what is\b/i,
+    /^what can\b/i,
+    /^help me\b/i,
+    /^show me\b/i,
+    /^tell me\b/i
+  ];
+  
+  const isGreeting = greetingPatterns.some(pattern => pattern.test(textLower));
+
+  if (isGreeting) {
+    const baseUrl = 'http://localhost:3001';
+    const registrationUrl = `${baseUrl}/`;
+    
+    const greetingMessage = `👋 *Welcome to Intellibot!*\n\n` +
+      `I'm your AI-powered assistant for the Somnia blockchain. I can help you:\n\n` +
+      `💰 *Send Tokens* - Transfer STT/SOMI using phone numbers\n` +
+      `📊 *Check Balance* - View your wallet balance\n` +
+      `📈 *Price Alerts* - Get notified when token prices change\n` +
+      `📜 *Transaction History* - View your transaction records\n` +
+      `🔄 *Swap Tokens* - Exchange tokens directly\n\n` +
+      `📝 *New users:* Register your phone number with your wallet address here:\n` +
+      `${registrationUrl}\n\n` +
+      `How can I help you today? 😊`;
+    
+    await sendWhatsAppMessage(from, greetingMessage);
+    return res.sendStatus(200);
+  }
+
+  // ------------------------------
   // 3. NLP PROCESSING
   // ------------------------------
   console.log("🤖 Starting NLP processing...");

@@ -59,7 +59,7 @@ if (RPC_WS_URL) {
 
 const sdk = new SDK({ public: wsPublicClient as any });
 
-const WHATSAPP_TOKEN = 'EAAL0CDf89vYBP8JNEJZAArRmTvHIGyN2ZAlxHCQjtfy1yMnlfHsvcHYTEZBi0ZAHEv0WPDMwxikZAZCMasdrBb4LFDoZA9h2ImjGGncI42CNPbe8OINsjFywqfhsJ9NmRAy4qWyB7GzE99jOs39HfNX8nr2jeDWZBjduTvnVryTnj17q6YoY685octDSv23dXTuMZAvE3FMZBkqZCMtn3Un1dL0tUqaZBZBebeFPZBi68eqZA74hecVUGQZD';
+const WHATSAPP_TOKEN = 'EAAL0CDf89vYBQOuv9J94Gc6frbTG8yrU4KUeZB0i171h6j0ypjQquIha3eitMcwTVZCXRgsZBI6326shtUYKD2WnGZAi573AxbZAEzZC9PwuVbtFrH67dJ0px8MauTQSXwhh7gPY1hSJqudW3Iv1MbsyoVxPnj0Qr5t2TOZAWo8enICpNYqIJZCr7EpRbOWVPhi4f2ZBwGWiyPMioF85H3TFxZBS0BDrRt3qN45OOOQbFRGojW59ZCC1HV60SQmIq8VGIuz7hy8hrGmQQA8tIKKvODIEkXG4wZDZD';
 const PHONE_NUMBER_ID = '879313071929309';
 
 // Blockchain explorer URL for transaction links (Somnia Testnet - Shannon)
@@ -184,7 +184,7 @@ async function subscribeToTransferConfirmed() {
           const recipientPhone = decoded.toPhone.trim();
           const senderPhone = decoded.fromPhone?.trim() || '';
           const amountFormatted = formatAmount(decoded.amount, decoded.token);
-          const txLink = decoded.txHash ? getTxLink(decoded.txHash) : '';
+          const txLink = getTxLink(decoded.txHash);
           
           // Notify recipient
           if (recipientPhone) {
@@ -202,7 +202,7 @@ async function subscribeToTransferConfirmed() {
           if (senderPhone && fromPhoneHash !== '0x' + '0'.repeat(64)) {
             const senderMessage = 
               `✅ *Transfer Sent!*\n\n` +
-              `📤 Amount: *${amountFormatted}* ${decoded.token}\n` +
+              `📤 Amount: *${amountFormatted}* \n` +
               `📱 To: ${recipientPhone}\n` +
               `🔗 View transaction: ${txLink}\n\n`;
             
