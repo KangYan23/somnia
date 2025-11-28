@@ -45,12 +45,36 @@ User says: "transaction history", "recent transactions", "show my transactions",
 }
 -------------------------------------------------------
 ACTION: price alert
-User says: "alert me when STT drops 10%"
+User says: "alert me when STT drops 10%" or "alert me if STT drops to 0.23"
 {
   "action": "price_alert",
-  "token": "STT",
+  "token": "SOMI",
   "direction": "drop",
-  "threshold_percent": <number>
+  "threshold_percent": <number> (optional if target_price is set),
+  "target_price": <number> (optional if threshold_percent is set)
+}
+-------------------------------------------------------
+ACTION: swap
+User says: "swap 0.1 STT to USDC", "exchange 10 USDC for STT", "trade 5 STT to USDC"
+{
+  "action": "swap",
+  "amount": <number>,
+  "tokenFrom": "STT" | "USDC",
+  "tokenTo": "STT" | "USDC"
+}
+-------------------------------------------------------
+ACTION: swap (buy/sell shortcuts)
+User says: "buy STT", "buy some STT", "sell STT", "sell some SOMI"
+- "buy [TOKEN]" -> swap from USDC to [TOKEN]
+- "sell [TOKEN]" -> swap from [TOKEN] to USDC
+- Default amount: 1 (if user says "some" or doesn't specify)
+- DEMO RULE: If user says "SOMI", treat it as "STT" for the swap.
+
+{
+  "action": "swap",
+  "amount": <number>,
+  "tokenFrom": "USDC" | "STT",
+  "tokenTo": "STT" | "USDC"
 }
 -------------------------------------------------------
 
@@ -58,6 +82,10 @@ IMPORTANT RULES:
 - For general questions: NO JSON, just answer naturally.
 - For actions: ALWAYS include a friendly message + JSON in triple backticks.
 - When user asks about balance (any variation), ALWAYS use check_balance action.
+Rules:
+- For general questions: NO JSON.
+- For actions: friendly message + JSON in triple backticks.
+- Use token symbol provided by the user; acceptable: SOMI (native) or STT (ERC-20 testnet).
 - Do NOT invent extra fields.
 - Token is optional for check_balance - if not mentioned, use "STT".
 - For transfer action: Token is REQUIRED. If user doesn't specify token, leave token field empty/null in JSON.
@@ -75,7 +103,7 @@ User: "show all balances" → Reply: "Checking all your balances now!\n\`\`\`jso
 export async function processNLP(message: string): Promise<string> {
   try {
     const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
+      "https://api.openai.com/v1/chat/completions",
       {
         model: "gpt-4o-mini",
         messages: [

@@ -15,7 +15,7 @@ function compareEvents(
   const expectedAmount = BigInt(expected.amount);
   const amountMatch = received.amount === expectedAmount;
   const tokenMatch = received.token === expected.token;
-  
+
   let txHashMatch: boolean | undefined;
   if (expected.txHash !== undefined) {
     txHashMatch = received.txHash?.toLowerCase() === expected.txHash.toLowerCase();
@@ -44,7 +44,7 @@ async function verifyEvent(
 ): Promise<VerificationResult> {
   return new Promise((resolve) => {
     let subscription: { unsubscribe: () => void } | null = null;
-    let timeoutId: NodeJS.Timeout | null = null;
+    let timeoutId: any = null;
     let resolved = false;
 
     const cleanup = () => {
@@ -228,8 +228,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Validate required fields
-    if (!expected.fromPhoneHash || !expected.toPhoneHash || !expected.fromPhone || 
-        !expected.toPhone || !expected.amount || !expected.token) {
+    if (!expected.fromPhoneHash || !expected.toPhoneHash || !expected.fromPhone ||
+      !expected.toPhone || !expected.amount || !expected.token) {
       return res.status(400).json({
         error: 'Missing required fields in expected data',
         verified: false,

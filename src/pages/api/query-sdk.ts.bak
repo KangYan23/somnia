@@ -1,0 +1,179 @@
+// src/pages/api/query-sdk.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { createPublicClient, http, decodeEventLog } from 'viem';
+import { somniaTestnet } from 'viem/chains';
+import { normalizePhone, hashPhone } from '../../lib/phone';
+import { sdk } from '../../lib/somnia';
+
+const CONTRACT_ADDRESS = '0x6AB397FF662e42312c003175DCD76EfF69D048Fc';
+
+// Event signature for UserRegistrationBroadcast
+const eventAbi = {
+  type: 'event',
+  name: 'UserRegistrationBroadcast',
+  inputs: [
+    { name: 'phoneHash', type: 'bytes32', indexed: true },
+    { name: 'walletAddress', type: 'address', indexed: false },
+    { name: 'registeredAt', type: 'uint64', indexed: false }
+  ]
+} as const;
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    const phone = (req.method === 'GET' ? req.query.phone : req.body?.phone) as string;
+    
+    if (!phone) {
+      return res.status(400).json({ error: 'phone parameter required' });
+    }
+
+    const rpcUrl = process.env.RPC_URL;
+    if (!rpcUrl) {
+      return res.status(500).json({ error: 'RPC_URL not configured' });
+    }
+
+    // normalize & hash
+    const normalized = normalizePhone(phone);
+    const phoneHash = hashPhone(normalized);
+
+    // Create viem client for event queries
+    const client = createPublicClient({
+      chain: somniaTestnet,
+      transport: http(rpcUrl)
+    });
+
+    console.log(`Querying for phone: ${normalized}, hash: ${phoneHash}`);
+
+    // 1. Query user registration events
+    const latestBlock = await client.getBlockNumber();
+    const CHUNK_SIZE = 1000;
+    const MAX_CHUNKS = 5;
+    
+    let allLogs: any[] = [];
+    let currentBlock = latestBlock;
+    
+    for (let i = 0; i < MAX_CHUNKS; i++) {
+      const fromBlock = currentBlock - BigInt(CHUNK_SIZE);
+      
+      const logs = await client.getLogs({
+        address: CONTRACT_ADDRESS,
+        event: eventAbi,
+        args: {
+          phoneHash: phoneHash as `0x${string}`
+        },
+        fromBlock,
+        toBlock: currentBlock
+      });
+      
+      if (logs.length > 0) {
+        allLogs.push(...logs);
+        console.log(`Found ${logs.length} registration events in block range ${fromBlock}-${currentBlock}`);
+      }
+      
+      currentBlock = fromBlock - BigInt(1);
+      if (currentBlock < 0) break;
+    }
+
+    // Process registration events
+    const registrations = allLogs.map((log) => {
+      const decoded = decodeEventLog({
+        abi: [eventAbi],
+        data: log.data,
+        topics: log.topics
+      });
+
+      return {
+        walletAddress: decoded.args.walletAddress,
+        registeredAt: new Date(Number(decoded.args.registeredAt)).toISOString(),
+        phoneHash: decoded.args.phoneHash,
+        recordId: `${log.blockNumber}_${log.transactionIndex}_${log.logIndex}`,
+        transactionHash: log.transactionHash
+      };
+    });
+
+    console.log(`Found ${registrations.length} registrations`);
+
+    // 2. For each registration, try to get the price threshold data
+    let priceThresholds: any[] = [];
+    
+    try {
+      console.log('Attempting to get price thresholds from registration metadata...');
+      
+      for (const registration of registrations) {
+        // Try to get the user registration data to extract priceDataId
+        try {
+          const userData = await sdk.streams.getByKey('userRegistration', phoneHash);
+          console.log('User registration data:', userData);
+          
+          if (userData && userData.length > 0) {
+            for (const userItem of userData) {
+              console.log('Processing user item:', userItem);
+              
+              // Try to parse metainfo for priceDataId
+              if (userItem.metainfo) {
+                try {
+                  const metadata = JSON.parse(userItem.metainfo);
+                  console.log('Parsed metadata:', metadata);
+                  
+                  if (metadata.priceDataId) {
+                    console.log('Found priceDataId in metadata:', metadata.priceDataId);
+                    
+                    // Now get the specific price data
+                    const priceData = await sdk.streams.get(metadata.priceDataId);
+                    console.log('Price data result:', priceData);
+                    
+                    if (priceData) {
+                      priceThresholds.push({
+                        dataId: metadata.priceDataId,
+                        phoneHash: phoneHash,
+                        tokenSymbol: metadata.tokenSymbol || 'STT',
+                        minLossPercentage: metadata.minLoss || 0,
+                        maxProfitPercentage: metadata.maxProfit || 0,
+                        updatedAt: userItem.registeredAt || Date.now()
+                      });
+                    }
+                  } else {
+                    console.log('No priceDataId in metadata');
+                  }
+                } catch (e) {
+                  console.log('Could not parse metainfo as JSON:', userItem.metainfo);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error getting user registration data:', e);
+        }
+      }
+      
+    } catch (e) {
+      console.error('Error querying price thresholds via SDK:', e);
+    }
+
+    console.log(`Found ${priceThresholds.length} price thresholds`);
+
+    const result = {
+      phone: normalized,
+      found: registrations.length > 0 || priceThresholds.length > 0,
+      registrations: registrations,
+      priceThresholds: priceThresholds,
+      registrationCount: registrations.length,
+      thresholdCount: priceThresholds.length,
+      debug: {
+        phoneHash,
+        latestBlock: latestBlock.toString(),
+        searchedBlocks: MAX_CHUNKS * CHUNK_SIZE
+      }
+    };
+
+    return res.json(JSON.parse(JSON.stringify(result, (key, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    )));
+
+  } catch (error: any) {
+    console.error('Query error:', error);
+    return res.status(500).json({ 
+      error: 'Failed to query data',
+      details: error.message
+    });
+  }
+}

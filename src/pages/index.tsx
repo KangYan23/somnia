@@ -1,31 +1,69 @@
 // src/pages/index.tsx
-import { useState } from "react";
-import { ethers } from "ethers";
+import { useState } from 'react';
+import { useAccount } from 'wagmi';
+import WavyBackground from '../components/WavyBackground';
+import HeroSection from '../components/HeroSection';
+import { ethers } from 'ethers';
+
+// Phone utility functions (client-side versions)
+function normalizePhone(raw: string) {
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/(?!^\+)[^\d]/g, '');
+  return digits;
+}
+
+async function hashPhone(normalizedPhone: string) {
+  // SHA-256 -> 0x-prefixed hex (client-side version using Web Crypto API)
+  const encoder = new TextEncoder();
+  const data = encoder.encode(normalizedPhone);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return '0x' + hashHex;
+}
 
 export default function Home() {
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [status, setStatus] = useState("");
-  const [queryPhone, setQueryPhone] = useState("");
+  const { address } = useAccount();
+  const [phone, setPhone] = useState('');
+  const [status, setStatus] = useState('');
+  const [queryPhone, setQueryPhone] = useState('');
   const [queryResult, setQueryResult] = useState<any>(null);
+  
+  // Query Datastream state
+  const [datastreamQuery, setDatastreamQuery] = useState({
+    schemaName: 'userRegistration',
+    publisher: '',
+    dataId: ''
+  });
+  const [datastreamResult, setDatastreamResult] = useState<any>(null);
+  
+  // Phone-based query state
+  const [phoneQuery, setPhoneQuery] = useState('');
+  const [phoneQueryResult, setPhoneQueryResult] = useState<any>(null);
+  const [publisherAddress, setPublisherAddress] = useState<string>('');
+  
+  // Price threshold state
+  const [priceThresholdPhone, setPriceThresholdPhone] = useState('');
+  const [tokenSymbol, setTokenSymbol] = useState('STT');
+  const [minPrice, setMinPrice] = useState<number>(100);
+  const [maxPrice, setMaxPrice] = useState<number>(200);
+  const [priceThresholdStatus, setPriceThresholdStatus] = useState('');
+  
+  // Active price thresholds management
+  const [activeThresholds, setActiveThresholds] = useState<any[]>([]);
+  const [showActiveThresholds, setShowActiveThresholds] = useState(false);
 
   async function connectWallet() {
     if (typeof window === "undefined" || !(window as any).ethereum) {
       return alert("Install MetaMask or WalletConnect");
     }
-    // ethers v6: use BrowserProvider for injected wallets
-    const provider = new ethers.BrowserProvider(
-      (window as any).ethereum as any
-    );
-    // request accounts (some providers automatically prompt on getSigner methods)
-    try {
-      await (window as any).ethereum.request?.({
-        method: "eth_requestAccounts",
-      });
-    } catch {}
-    const signer = await provider.getSigner();
-    const addr = await signer.getAddress();
-    setAddress(addr);
+  // ethers v6: use BrowserProvider for injected wallets
+  const provider = new ethers.BrowserProvider((window as any).ethereum as any);
+  // request accounts (some providers automatically prompt on getSigner methods)
+  try { await (window as any).ethereum.request?.({ method: 'eth_requestAccounts' }); } catch {}
+  const signer = await provider.getSigner();
+  const addr = await signer.getAddress();
+    // The address from useAccount() hook will be automatically updated
   }
 
   async function submit() {
@@ -51,119 +89,594 @@ export default function Home() {
     setQueryResult(j);
   }
 
+  async function queryDatastream() {
+    if (!datastreamQuery.publisher || !datastreamQuery.dataId) {
+      return alert('Publisher and Data ID are required');
+    }
+    setDatastreamResult({ loading: true });
+    
+    try {
+      const res = await fetch('/api/query-datastream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datastreamQuery)
+      });
+      const j = await res.json();
+      setDatastreamResult(j);
+    } catch (error) {
+      setDatastreamResult({ 
+        error: 'Failed to query datastream: ' + (error instanceof Error ? error.message : 'Unknown error')
+      });
+    }
+  }
+
+  // Helper function to auto-fill datastream query with phone number
+  async function queryDatastreamByPhone() {
+    if (!queryPhone) return alert('Enter phone number first');
+    if (!address) return alert('Connect wallet to use as publisher address');
+    
+    // We need to hash the phone number to get the dataId
+    // This assumes you have the phone utility functions available on the frontend
+    // For now, we'll just show how to format the query manually
+    setDatastreamQuery({
+      schemaName: 'userRegistration',
+      publisher: address,
+      dataId: '' // User will need to provide the phone hash manually
+    });
+    alert(`Set publisher to your address. You'll need to provide the phone hash as dataId. Phone: ${queryPhone}`);
+  }
+
+  // New function: Query by phone number directly
+  async function registerPriceThreshold() {
+    if (!priceThresholdPhone) {
+      alert('Enter phone number for price threshold');
+      return;
+    }
+    
+    if (minPrice >= maxPrice) {
+      alert('Min price must be less than max price');
+      return;
+    }
+    
+    setPriceThresholdStatus('Setting price threshold...');
+    
+    try {
+      const res = await fetch('/api/register-price-threshold', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: priceThresholdPhone,
+          tokenSymbol,
+          minPrice,
+          maxPrice
+        })
+      });
+      
+      const result = await res.json();
+      
+      if (result.ok) {
+        setPriceThresholdStatus(`✅ Price threshold set! TX: ${result.tx}`);
+        // Refresh active thresholds after setting new one
+        loadActiveThresholds();
+      } else {
+        setPriceThresholdStatus(`❌ Error: ${result.error}`);
+      }
+    } catch (error) {
+      setPriceThresholdStatus(`❌ Failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Load active price thresholds for the current wallet
+  async function loadActiveThresholds() {
+    try {
+      // Get publisher address
+      const publisherRes = await fetch('/api/get-publisher');
+      const publisherData = await publisherRes.json();
+      
+      if (publisherData.error) {
+        console.error('Failed to get publisher address:', publisherData.error);
+        return;
+      }
+      
+      // Query all price thresholds
+      const res = await fetch('/api/query-datastream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schemaName: 'priceThreshold',
+          publisher: publisherData.publisherAddress,
+          dataId: '' // Get all records
+        })
+      });
+      
+      const result = await res.json();
+      
+      if (result.found && result.results) {
+        // Sort by updatedAt to show most recent first
+        const sorted = result.results.sort((a: any, b: any) => {
+          const aTime = Number(a.updatedAt || 0);
+          const bTime = Number(b.updatedAt || 0);
+          return bTime - aTime;
+        });
+        
+        // Convert wei to USD and format
+        const formatted = sorted.map((item: any) => ({
+          ...item,
+          minPriceUSD: (Number(item.minPrice || 0) / 1e18).toFixed(6),
+          maxPriceUSD: (Number(item.maxPrice || 0) / 1e18).toFixed(6),
+          updatedAtISO: new Date(Number(item.updatedAt || 0)).toISOString()
+        }));
+        
+        setActiveThresholds(formatted);
+      } else {
+        setActiveThresholds([]);
+      }
+    } catch (error) {
+      console.error('Error loading active thresholds:', error);
+      setActiveThresholds([]);
+    }
+  }
+
+  async function queryByPhoneNumber() {
+    console.log('🔍 Button clicked, starting phone query...');
+    
+    if (!phoneQuery) {
+      alert('Enter phone number to query');
+      return;
+    }
+    
+    console.log('📱 Input validation passed. Phone:', phoneQuery);
+    setPhoneQueryResult({ loading: true });
+    
+    try {
+      // Get the publisher address from environment
+      console.log('🔄 Fetching publisher address...');
+      const publisherRes = await fetch('/api/get-publisher');
+      const publisherData = await publisherRes.json();
+      
+      if (publisherData.error) {
+        throw new Error('Failed to get publisher address: ' + publisherData.error);
+      }
+      
+      const envPublisher = publisherData.publisherAddress;
+      console.log('✅ Environment publisher:', envPublisher, 'Source:', publisherData.source);
+      
+      // Normalize and hash the phone number
+      console.log('🔄 Normalizing phone...');
+      const normalized = normalizePhone(phoneQuery);
+      console.log('✅ Normalized:', normalized);
+      
+      console.log('🔄 Hashing phone...');
+      const phoneHash = await hashPhone(normalized);
+      console.log('✅ Phone hash:', phoneHash);
+      
+      console.log('🚀 Querying datastream...');
+      
+      // Query the datastream with the computed phone hash
+      const res = await fetch('/api/query-datastream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schemaName: 'userRegistration',
+          publisher: envPublisher, // Use environment publisher address
+          dataId: phoneHash
+        })
+      });
+      
+      const result = await res.json();
+      console.log('📥 API response:', result);
+      
+      // Also query for price thresholds
+      console.log('🔄 Querying price thresholds...');
+      let priceThreshold = null;
+      try {
+        const priceRes = await fetch('/api/query-price-threshold', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: phoneQuery,
+            publisher: envPublisher
+          })
+        });
+        const priceResult = await priceRes.json();
+        if (priceResult.found) {
+          priceThreshold = priceResult;
+          console.log('✅ Found price threshold:', priceThreshold);
+        } else {
+          console.log('❌ No price threshold found');
+        }
+      } catch (priceError) {
+        console.warn('⚠️ Price threshold query failed:', priceError);
+      }
+      
+      // If found, extract wallet address from the processed results
+      if (result.found && result.results && result.results[0]) {
+        console.log('🔍 Analyzing result structure:', result.results);
+        
+        const userData = result.results[0]; // First result (now normalized)
+        console.log('🔍 userData structure:', userData, 'Type:', typeof userData);
+        
+        let walletAddress, registeredAt, metainfo;
+        
+        // The API now returns normalized objects with direct property access
+        if (userData && typeof userData === 'object') {
+          console.log('📦 Processing normalized userData');
+          walletAddress = userData.walletAddress;
+          registeredAt = userData.registeredAt;
+          metainfo = userData.metainfo;
+          
+          console.log('🔍 Extracted normalized values:', {
+            phoneHash: userData.phoneHash,
+            walletAddress,
+            registeredAt,
+            metainfo
+          });
+        } else {
+          console.warn('⚠️ Unexpected userData structure, using raw data:', userData);
+          // Fallback to string if it's a simple value
+          if (typeof userData === 'string') {
+            walletAddress = userData;
+          }
+        }
+        
+        console.log('✅ Extracted data:', { walletAddress, registeredAt, metainfo });
+        
+        // Safe date parsing
+        let registeredAtISO = null;
+        if (registeredAt) {
+          try {
+            const timestamp = typeof registeredAt === 'string' ? parseInt(registeredAt) : registeredAt;
+            if (!isNaN(timestamp) && timestamp > 0) {
+              registeredAtISO = new Date(timestamp).toISOString();
+            }
+          } catch (dateError) {
+            console.warn('⚠️ Failed to parse date:', registeredAt, dateError);
+          }
+        }
+        
+        setPhoneQueryResult({
+          found: true,
+          phone: normalized,
+          phoneHash,
+          walletAddress,
+          registeredAt: registeredAtISO,
+          metainfo,
+          publisher: envPublisher,
+          priceThreshold,
+          rawResult: result
+        });
+      } else {
+        console.log('❌ No data found');
+        setPhoneQueryResult({
+          found: false,
+          phone: normalized,
+          phoneHash,
+          publisher: envPublisher,
+          message: result.message || 'No registration found for this phone number',
+          rawResult: result
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Error during phone query:', error);
+      setPhoneQueryResult({ 
+        error: 'Failed to query by phone: ' + (error instanceof Error ? error.message : 'Unknown error')
+      });
+    }
+  }
+
   return (
-    <div
-      style={{
-        maxWidth: 680,
-        margin: "2rem auto",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      <h1>WhatsApp Wallet — Register</h1>
-      <p>
-        Connect your wallet and enter phone number in E.164 (e.g. +60123456789)
-      </p>
+    <>
+      <WavyBackground />
+      <div className="page-content">
+        <div className="container">
+          <HeroSection
+            onSubmit={submit}
+            phone={phone}
+            setPhone={setPhone}
+            status={status}
+          />
 
-      <div style={{ marginBottom: 12 }}>
-        <button onClick={connectWallet}>Connect Wallet</button>
-        <div style={{ marginTop: 8 }}>Connected: {address || "none"}</div>
-      </div>
+        <hr />
 
-      <div style={{ marginBottom: 12 }}>
-        <input
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="+60123456789"
-        />
-      </div>
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title mb-0">🔍 Query Registration</h2>
+            <p className="text-secondary">Enter a phone number to check if it's registered and see the wallet address</p>
+          </div>
 
-      <div>
-        <button onClick={submit}>Register</button>
-      </div>
+          <div className="form-group">
+            <label className="form-label">Phone Number</label>
+            <div className="flex gap-2">
+              <input 
+                value={queryPhone} 
+                onChange={e => setQueryPhone(e.target.value)} 
+                placeholder="+60123456789"
+                className="flex-1"
+              />
+              <button onClick={queryRegistration} className="btn-secondary">
+                🔍 Query
+              </button>
+            </div>
+          </div>
 
-      <div style={{ marginTop: 12 }}>{status}</div>
+          {queryResult && !queryResult.loading && (
+            <div className="mt-4">
+              {queryResult.error && (
+                <div className="alert alert-error">Error: {queryResult.error}</div>
+              )}
+              {!queryResult.error && !queryResult.found && (
+                <div className="alert alert-warning">No registration found for {queryResult.phone}</div>
+              )}
+              {queryResult.found && queryResult.registrations && (
+                <div className="alert alert-success">
+                  <h3 className="mb-4">Found {queryResult.count} registration(s) for {queryResult.phone}</h3>
+                  {queryResult.registrations.map((reg: any, idx: number) => (
+                    <div key={idx} className="card mt-4">
+                      <div className="mb-2"><strong>Wallet Address:</strong> <code>{reg.walletAddress}</code></div>
+                      <div className="mb-2"><strong>Registered At:</strong> {reg.registeredAtISO}</div>
+                      {reg.metainfo && <div className="mb-2"><strong>Metainfo:</strong> {reg.metainfo}</div>}
+                      <details className="mt-4">
+                        <summary className="text-sm text-muted">Technical Details</summary>
+                        <div className="text-xs text-muted mt-2">
+                          <div>Phone Hash: {reg.phoneHash}</div>
+                          <div>Record ID: {reg.id}</div>
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
       <hr style={{ margin: "2rem 0" }} />
 
-      <h2>Query Registration</h2>
-      <p>
-        Enter a phone number to check if it's registered and see the wallet
-        address:
-      </p>
+      <h2>💰 Set Price Threshold</h2>
+      <p>Set minimum and maximum price alerts for a phone number:</p>
 
       <div style={{ marginBottom: 12 }}>
-        <input
-          value={queryPhone}
-          onChange={(e) => setQueryPhone(e.target.value)}
-          placeholder="+60123456789"
-          style={{ marginRight: 8 }}
-        />
-        <button onClick={queryRegistration}>Query</button>
+        <div style={{ marginBottom: 8 }}>
+          <input 
+            value={priceThresholdPhone} 
+            onChange={e => setPriceThresholdPhone(e.target.value)} 
+            placeholder="+60123456789"
+            style={{ marginRight: 8, width: 200 }}
+          />
+          <input 
+            value={tokenSymbol} 
+            onChange={e => setTokenSymbol(e.target.value)} 
+            placeholder="Token Symbol"
+            style={{ marginRight: 8, width: 100 }}
+          />
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ marginRight: 8 }}>Min Price:</label>
+          <input 
+            type="number" 
+            value={minPrice} 
+            onChange={e => setMinPrice(Number(e.target.value))} 
+            style={{ marginRight: 16, width: 100 }}
+          />
+          <label style={{ marginRight: 8 }}>Max Price:</label>
+          <input 
+            type="number" 
+            value={maxPrice} 
+            onChange={e => setMaxPrice(Number(e.target.value))} 
+            style={{ width: 100 }}
+          />
+        </div>
+        <button onClick={registerPriceThreshold}>Set Price Threshold</button>
       </div>
 
-      {queryResult && !queryResult.loading && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: 12,
-            background: "#f5f5f5",
-            borderRadius: 4,
-          }}
-        >
-          {queryResult.error && (
-            <div style={{ color: "red" }}>Error: {queryResult.error}</div>
-          )}
-          {!queryResult.error && !queryResult.found && (
-            <div>No registration found for {queryResult.phone}</div>
-          )}
-          {queryResult.found && queryResult.registrations && (
+      {priceThresholdStatus && (
+        <div style={{ marginTop: 12, padding: 12, background: '#f0f8ff', borderRadius: 4 }}>
+          {priceThresholdStatus}
+        </div>
+      )}
+
+      <hr style={{ margin: '2rem 0' }} />
+
+      <h2>📊 Active Price Thresholds</h2>
+      <p>View and manage all your active price monitoring thresholds:</p>
+      
+      <div style={{ marginBottom: 12 }}>
+        <button onClick={() => { loadActiveThresholds(); setShowActiveThresholds(!showActiveThresholds); }}>
+          {showActiveThresholds ? 'Hide' : 'Show'} Active Thresholds ({activeThresholds.length})
+        </button>
+      </div>
+
+      {showActiveThresholds && (
+        <div style={{ marginTop: 12, padding: 12, background: '#f9f9f9', borderRadius: 4 }}>
+          {activeThresholds.length === 0 ? (
+            <div style={{ color: '#666', fontStyle: 'italic' }}>
+              No active price thresholds found. Set some price alerts above!
+            </div>
+          ) : (
             <div>
-              <h3>
-                Found {queryResult.count} registration(s) for{" "}
-                {queryResult.phone}
-              </h3>
-              {queryResult.registrations.map((reg: any, idx: number) => (
-                <div
-                  key={idx}
-                  style={{
-                    marginTop: 12,
-                    padding: 8,
-                    background: "white",
-                    borderRadius: 4,
-                  }}
-                >
-                  <div>
-                    <strong>Wallet Address:</strong>{" "}
-                    {String(reg.walletAddress || "N/A")}
+              <h4>Your Active Price Monitoring ({activeThresholds.length} total):</h4>
+              {activeThresholds.map((threshold: any, idx: number) => (
+                <div key={idx} style={{ 
+                  marginTop: 8, 
+                  padding: 12, 
+                  background: idx === 0 ? '#e8f5e8' : 'white', 
+                  border: idx === 0 ? '2px solid #00aa00' : '1px solid #ddd',
+                  borderRadius: 4 
+                }}>
+                  {idx === 0 && <div style={{ color: '#00aa00', fontWeight: 'bold', fontSize: '0.9em' }}>🎯 MOST RECENT (Active)</div>}
+                  <div style={{ marginTop: 4 }}>
+                    <strong>📱 Phone Hash:</strong> {threshold.phoneHash?.slice(0, 16)}...
                   </div>
-                  <div>
-                    <strong>Registered At:</strong>{" "}
-                    {String(reg.registeredAtISO || "N/A")}
-                  </div>
-                  {reg.metainfo && (
-                    <div>
-                      <strong>Metainfo:</strong> {String(reg.metainfo)}
+                  <div><strong>🪙 Token:</strong> {threshold.tokenSymbol || 'STT'}</div>
+                  <div><strong>📉 Min Price:</strong> ${threshold.minPriceUSD} USD</div>
+                  <div><strong>📈 Max Price:</strong> ${threshold.maxPriceUSD} USD</div>
+                  <div><strong>🕒 Updated:</strong> {threshold.updatedAtISO}</div>
+                  {idx === 0 && (
+                    <div style={{ marginTop: 8, padding: 8, background: 'rgba(0, 170, 0, 0.1)', borderRadius: 4 }}>
+                      <strong>🚨 This is your ACTIVE threshold being monitored!</strong>
+                      <div style={{ fontSize: '0.9em', color: '#666' }}>
+                        Current SOMNIA price will be checked against this range every 10 seconds.
+                      </div>
                     </div>
                   )}
-                  <div
-                    style={{ fontSize: "0.85em", color: "#666", marginTop: 4 }}
-                  >
-                    <div>Phone Hash: {String(reg.phoneHash || "N/A")}</div>
-                    <div>Publisher: {String(reg.publisher || "N/A")}</div>
-                    <div>Source: {String(reg.source || "N/A")}</div>
-                    <div
-                      style={{ fontSize: "0.8em", color: "#999", marginTop: 4 }}
-                    >
-                      Raw data: {JSON.stringify(reg, null, 2).substring(0, 100)}
-                      ...
-                    </div>
-                  </div>
                 </div>
               ))}
+              <div style={{ marginTop: 12, fontSize: '0.9em', color: '#666' }}>
+                💡 <strong>Tip:</strong> The price monitoring system uses your most recent threshold (green box above).
+                Old thresholds are kept for history but not actively monitored.
+              </div>
             </div>
           )}
         </div>
       )}
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title mb-0">⚡ Quick Phone Lookup</h2>
+            <p className="text-secondary">Simply enter a phone number to find the associated wallet address (no wallet connection needed)</p>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Phone Number</label>
+            <div className="flex gap-2">
+              <input 
+                value={phoneQuery} 
+                onChange={e => setPhoneQuery(e.target.value)} 
+                placeholder="+60123456789"
+                className="flex-1"
+              />
+              <button onClick={queryByPhoneNumber} className="btn-primary">
+                🔍 Find Wallet
+              </button>
+            </div>
+          </div>
+
+      {phoneQueryResult && !phoneQueryResult.loading && (
+        <div style={{ marginTop: 12, padding: 12, background: '#e8f5e8', borderRadius: 4 }}>
+          {phoneQueryResult.error && (
+            <div style={{ color: 'red' }}>Error: {phoneQueryResult.error}</div>
+          )}
+          {!phoneQueryResult.error && !phoneQueryResult.found && (
+            <div>
+              <div style={{ color: '#666' }}>❌ No wallet found for {phoneQueryResult.phone}</div>
+              <div style={{ fontSize: '0.85em', color: '#888', marginTop: 4 }}>
+                Phone Hash: {phoneQueryResult.phoneHash}
+              </div>
+            </div>
+          )}
+          {phoneQueryResult.found && (
+            <div>
+              <div style={{ marginBottom: 8 }}>
+                <strong>✅ Phone:</strong> {phoneQueryResult.phone}
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <strong>💰 Wallet Address:</strong> 
+                <code style={{ background: 'white', padding: '2px 6px', margin: '0 4px', borderRadius: 2 }}>
+                  {phoneQueryResult.walletAddress}
+                </code>
+              </div>
+              {phoneQueryResult.registeredAt && (
+                <div style={{ marginBottom: 8 }}>
+                  <strong>📅 Registered:</strong> {phoneQueryResult.registeredAt}
+                </div>
+              )}
+              {phoneQueryResult.metainfo && (
+                <div style={{ marginBottom: 8 }}>
+                  <strong>ℹ️ Info:</strong> {phoneQueryResult.metainfo}
+                </div>
+              )}
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ cursor: 'pointer', fontSize: '0.85em', color: '#666' }}>
+                  Technical Details
+                </summary>
+                <div style={{ fontSize: '0.8em', color: '#666', marginTop: 4 }}>
+                  <div>Phone Hash: {phoneQueryResult.phoneHash}</div>
+                </div>
+              </details>
+            </div>
+          )}
+        </div>
+      )}
+
+      <hr style={{ margin: '2rem 0' }} />
+
+      <h2>Query Datastream</h2>
+      <p>Advanced: Query data directly from the datastream using schema name, publisher address, and data ID:</p>
+
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 8 }}>
+          <label>Schema Name:</label>
+          <input 
+            value={datastreamQuery.schemaName}
+            onChange={e => setDatastreamQuery({...datastreamQuery, schemaName: e.target.value})}
+            placeholder="userRegistration"
+            style={{ marginLeft: 8, width: 200 }}
+          />
+        </div>
+        
+        <div style={{ marginBottom: 8 }}>
+          <label>Publisher Address:</label>
+          <input 
+            value={datastreamQuery.publisher}
+            onChange={e => setDatastreamQuery({...datastreamQuery, publisher: e.target.value})}
+            placeholder="0x123...abc"
+            style={{ marginLeft: 8, width: 300 }}
+          />
+        </div>
+        
+        <div style={{ marginBottom: 8 }}>
+          <label>Data ID (Phone Hash):</label>
+          <input 
+            value={datastreamQuery.dataId}
+            onChange={e => setDatastreamQuery({...datastreamQuery, dataId: e.target.value})}
+            placeholder="0x456...def"
+            style={{ marginLeft: 8, width: 300 }}
+          />
+        </div>
+        
+        <button onClick={queryDatastream} style={{ marginRight: 8 }}>Query Datastream</button>
+        <button onClick={queryDatastreamByPhone}>Auto-fill from Phone</button>
+      </div>
+
+          {datastreamResult && !datastreamResult.loading && (
+            <div className="mt-4">
+              {datastreamResult.error && (
+                <div className="alert alert-error">Error: {datastreamResult.error}</div>
+              )}
+              {!datastreamResult.error && !datastreamResult.found && (
+                <div className="alert alert-warning">No data found for the given parameters</div>
+              )}
+              {datastreamResult.found && (
+                <div className="alert alert-info">
+                  <h3 className="mb-4">Datastream Results</h3>
+                  <div className="mb-2">
+                    <strong>Schema:</strong> {datastreamResult.schemaName} ({datastreamResult.schemaId})
+                  </div>
+                  <div className="mb-2">
+                    <strong>Publisher:</strong> <code>{datastreamResult.publisher}</code>
+                  </div>
+                  <div className="mb-4">
+                    <strong>Data ID:</strong> <code>{datastreamResult.dataId}</code>
+                  </div>
+                  
+                  <div className="card">
+                    <strong>Raw Results:</strong>
+                    <pre className="mt-2">{JSON.stringify(datastreamResult.results, null, 2)}</pre>
+                  </div>
+                  
+                  <div className="text-sm text-muted mt-4">
+                    <div>Result Type: {datastreamResult.metadata.resultType}</div>
+                    <div>Is Array: {datastreamResult.metadata.isArray ? 'Yes' : 'No'}</div>
+                    <div>Count: {datastreamResult.metadata.count}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
-  );
+  </>
+);
 }

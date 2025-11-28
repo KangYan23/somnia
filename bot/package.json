@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "npx tsx index.ts",
+    "dev": "npx tsx index.ts",
+    "price-watcher": "npx tsx ../services/price-alert/watcher.ts",
+    "price-listener": "npx tsx ../services/price-alert/listener.ts"
   },
   "keywords": [],
   "author": "",

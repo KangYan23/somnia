@@ -8,11 +8,11 @@ type HexString = `0x${string}`;
 const zeroBytes32 = ('0x' + '0'.repeat(64)) as HexString;
 
 async function register() {
-  // Data schema: userRegistration
+  // Data schema: userRegistration with thresholds included
   const dataSchemas = [
     {
-      id: 'userRegistration',
-      schema: 'bytes32 phoneHash, address walletAddress, string metainfo, uint64 registeredAt',
+      id: 'userRegistrationWithThresholds',
+      schema: 'bytes32 phoneHash, address walletAddress, string metainfo, uint64 registeredAt, uint256 minLossPercentage, uint256 maxProfitPercentage, string tokenSymbol',
       parentSchemaId: zeroBytes32
     },
     {
@@ -69,7 +69,8 @@ async function register() {
         { name:'registeredAt', paramType:'uint64', isIndexed: false }
       ],
       eventTopic: 'UserRegistrationBroadcast(bytes32 indexed phoneHash, address walletAddress, uint64 registeredAt)'
-    }
+    },
+   
   ];
 
   console.log('Registering data schemas...');
