@@ -34,6 +34,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { transactionColumns, Transaction } from "@/lib/transaction-columns"
 import { StatsCard } from "@/components/ui/activity-stats-card"
+import styles from "./transactions.module.css"
 
 const EXPLORER_URL =
   process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER_URL ||
@@ -352,7 +353,7 @@ export default function TransactionHistoryPage() {
   }
 
   const renderPage = (content: React.ReactNode) => (
-    <div className="min-h-screen bg-[#f0fdf4] py-8 px-4 sm:px-6 lg:px-8">
+    <div className={`${styles.transactionTheme} min-h-screen bg-background py-8 px-4 sm:px-6 lg:px-8`}>
       <div className="w-full">{content}</div>
     </div>
   )
@@ -665,8 +666,8 @@ export default function TransactionHistoryPage() {
             <Badge
               variant="outline"
               className={`h-6 px-2.5 text-xs font-medium ${chartSummary.netFlow >= 0
-                  ? "bg-[#dff5e1] text-[#15803d] border-[#16a34a]"
-                  : "bg-[#fee2e2] text-[#dc2626] border-[#dc2626]"
+                ? "bg-[#dff5e1] text-[#15803d] border-[#16a34a]"
+                : "bg-[#fee2e2] text-[#dc2626] border-[#dc2626]"
                 }`}
             >
               {formatDisplayAmount(chartSummary.netFlow)} {primaryToken}
@@ -729,8 +730,8 @@ export default function TransactionHistoryPage() {
               <Badge
                 variant="outline"
                 className={`h-6 border-0 px-2.5 text-xs font-medium ${velocityChange >= 0
-                    ? "bg-[#dff5e1] text-[#15803d]"
-                    : "bg-[#fee2e2] text-[#dc2626]"
+                  ? "bg-[#dff5e1] text-[#15803d]"
+                  : "bg-[#fee2e2] text-[#dc2626]"
                   }`}
               >
                 {velocityChange >= 0 ? (
@@ -820,8 +821,8 @@ export default function TransactionHistoryPage() {
               <button
                 onClick={() => toggleChartView("income")}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${chartView === "income"
-                    ? "bg-[#16a34a] text-white"
-                    : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
+                  ? "bg-[#16a34a] text-white"
+                  : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
                   }`}
               >
                 Income
@@ -829,8 +830,8 @@ export default function TransactionHistoryPage() {
               <button
                 onClick={() => toggleChartView("expenses")}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${chartView === "expenses"
-                    ? "bg-[#dc2626] text-white"
-                    : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
+                  ? "bg-[#dc2626] text-white"
+                  : "bg-[#f9fafb] text-[#4b5563] hover:bg-[#e5e7eb]"
                   }`}
               >
                 Expenses
