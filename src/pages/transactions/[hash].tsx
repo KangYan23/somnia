@@ -666,7 +666,7 @@ export default function TransactionHistoryPage() {
 
   if (loading) {
     return renderPage(
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div>
         <h1 className="text-2xl font-semibold text-slate-900">
           Transaction History
         </h1>
@@ -677,7 +677,7 @@ export default function TransactionHistoryPage() {
 
   if (error) {
     return renderPage(
-      <div className="rounded-2xl border border-rose-200 bg-white p-6 shadow-sm">
+      <div>
         <h1 className="text-2xl font-semibold text-slate-900">
           Transaction History
         </h1>
@@ -706,7 +706,7 @@ export default function TransactionHistoryPage() {
             href={`${EXPLORER_URL}/address/${hash}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex h-9 items-center gap-2 rounded-lg bg-[#000000] px-4 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:bg-primary/90 hover:shadow-md zoom-in"
+            className="flex h-9 items-center gap-2 rounded-lg bg-[#000000] px-4 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:bg-black/90 hover:shadow-md zoom-in"
             whileHover={{ scale: 1.02, y: -1 }}
             transition={{ type: "spring", stiffness: 250, damping: 20 }}
           >
