@@ -72,10 +72,10 @@ export default function HeroSection({
       style={{ marginTop: '3rem' }} // spacing before hero
     >
       {/* ---------------- HERO TITLE ---------------- */}
-      <h1 className="text-center mb-6 text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight leading-snug flex flex-wrap justify-center items-center gap-2">
+      <h1 className="text-center mb-6 text-2xl md:text-3xl lg:text-4xl font-semibold tracking-tight leading-snug flex flex-wrap justify-center items-center gap-2">
         <span style={{ color: '#000000' }}>Meet</span>
         <span
-          className="text-4xl md:text-5xl lg:text-6xl font-bold"
+          className="text-3xl md:text-4xl lg:text-5xl font-bold"
           style={{
             background:
               'linear-gradient(135deg, oklch(95% 0.052 163.051), oklch(87.1% 0.15 154.449))',
@@ -90,7 +90,7 @@ export default function HeroSection({
       </h1>
 
       {/* ---------------- HERO SUBTITLE ---------------- */}
-      <p className="text-center text-secondary mb-10 text-base md:text-lg leading-relaxed max-w-3xl mx-auto">
+      <p className="text-center text-gray-600 mb-5 text-base md:text-lg leading-relaxed max-w-3xl mx-auto">
         Seamlessly link your Web3 wallet with your mobile identity. <br />
         Fast, secure, and built for real-world automation.
       </p>

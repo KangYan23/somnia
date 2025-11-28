@@ -368,7 +368,7 @@ export default function Home() {
   return (
     <>
       <WavyBackground />
-      <div className="page-content">
+      <div className="page-content" style={{ overflow: 'hidden', height: '100vh' }}>
         <div className="container">
           <HeroSection
             onSubmit={submit}
