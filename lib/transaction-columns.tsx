@@ -89,6 +89,7 @@ function endOfDay(date: Date) {
 export const transactionColumns: ColumnDef<Transaction>[] = [
   {
     accessorKey: "direction",
+    size: 150,
     header: () => (
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         Type
@@ -122,6 +123,7 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
   },
   {
     accessorKey: "counterparty",
+    size: 180,
     header: () => (
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         Counterparty
@@ -140,6 +142,7 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
   },
   {
     accessorKey: "amount",
+    size: 150,
     header: () => (
       <div className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
         Amount
@@ -167,6 +170,7 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
   },
   {
     accessorKey: "txHash",
+    size: 400,
     header: () => (
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         Hash
@@ -183,7 +187,7 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-white"
           >
             <span className="font-mono text-[11px]">
-              {txHash.slice(0, 8)}...{txHash.slice(-6)}
+              {txHash}
             </span>
             <ExternalLink className="h-3.5 w-3.5 text-slate-500" />
           </a>
@@ -197,6 +201,7 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
   },
   {
     accessorKey: "timestamp",
+    size: 180,
     header: () => (
       <div className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
         Date &amp; Time
@@ -237,6 +242,5 @@ export const transactionColumns: ColumnDef<Transaction>[] = [
 
       return true
     },
-  },
+  }
 ]
-
