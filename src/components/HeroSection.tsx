@@ -73,7 +73,7 @@ export default function HeroSection({
     >
       {/* ---------------- HERO TITLE ---------------- */}
       <h1 className="text-center mb-6 text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight leading-snug flex flex-wrap justify-center items-center gap-2">
-        <span>Meet</span>
+        <span style={{ color: '#000000' }}>Meet</span>
         <span
           className="text-4xl md:text-5xl lg:text-6xl font-bold"
           style={{
@@ -86,7 +86,7 @@ export default function HeroSection({
         >
           IntelliBot
         </span>
-        <span>— Your Smart WhatsApp Wallet Agent</span>
+        <span style={{ color: '#000000' }}>— Your Smart WhatsApp Wallet Agent</span>
       </h1>
 
       {/* ---------------- HERO SUBTITLE ---------------- */}
