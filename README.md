@@ -130,10 +130,10 @@ IntelliBot solves all three core problems:
 
 ## 🌐 High Level Architecture Diagram
 
-```
-<img width="1051" height="592" alt="image" src="https://github.com/user-attachments/assets/4e7b7880-8fd5-4828-985a-3f9c39373e55" />
 
-```
+<img width="1051" height="592" alt="image" src="https://github.com/user-attachments/assets/5619b0ee-12af-4ddf-95fd-adecca1421a0" />
+
+
 
 ---
 
