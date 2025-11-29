@@ -119,13 +119,13 @@ app.post("/webhook", async (req, res) => {
     /^show me\b/i,
     /^tell me\b/i
   ];
-  
+
   const isGreeting = greetingPatterns.some(pattern => pattern.test(textLower));
 
   if (isGreeting) {
     const baseUrl = 'http://localhost:3001';
     const registrationUrl = `${baseUrl}/`;
-    
+
     const greetingMessage = `👋 *Welcome to Intellibot!*\n\n` +
       `I'm your AI-powered assistant for the Somnia blockchain. I can help you:\n\n` +
       `💰 *Send Tokens* - Transfer STT/SOMI using phone numbers\n` +
@@ -136,7 +136,7 @@ app.post("/webhook", async (req, res) => {
       `📝 *New users:* Register your phone number with your wallet address here:\n` +
       `${registrationUrl}\n\n` +
       `How can I help you today? 😊`;
-    
+
     await sendWhatsAppMessage(from, greetingMessage);
     return res.sendStatus(200);
   }
@@ -226,9 +226,10 @@ app.post("/webhook", async (req, res) => {
 
   console.log("📤 Final reply to user:", finalReply);
 
-  if (typeof finalReply === 'object' && finalReply.type === 'interactive') {
-    await sendWhatsAppInteractiveMessage(from, finalReply.body, finalReply.action);
-  } else {
+  if (typeof finalReply === 'object' && finalReply !== null && 'type' in finalReply && (finalReply as any).type === 'interactive') {
+    const interactiveReply = finalReply as any;
+    await sendWhatsAppInteractiveMessage(from, interactiveReply.body, interactiveReply.action);
+  } else if (typeof finalReply === 'string') {
     await sendWhatsAppMessage(from, finalReply);
   }
 

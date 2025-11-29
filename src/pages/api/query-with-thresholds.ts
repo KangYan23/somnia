@@ -21,13 +21,13 @@ const eventAbi = {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const phone = (req.method === 'GET' ? req.query.phone : req.body?.phone) as string;
-    
+
     if (!phone) {
       return res.status(400).json({ error: 'phone parameter required' });
     }
 
     // Import SDK here to avoid import issues
-    const { sdk } = await import('../../lib/somnia');
+    const { sdk, account } = await import('../../lib/somnia');
 
     const phoneHash = hashPhone(normalizePhone(phone));
     console.log(`=== Querying phone: ${phone}, hash: ${phoneHash} ===`);
@@ -42,7 +42,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log(`📋 Schema ID for userRegistrationWithThresholds: ${schemaId}`);
 
       // Get all published data for this schema
-      const allData = await sdk.streams.getAllPublisherDataForSchema(schemaId);
+      const allData = await sdk.streams.getAllPublisherDataForSchema(schemaId, account.address);
+
+      if (!allData) {
+        console.log('No data found for this schema');
+        return res.json({
+          registered: false,
+          message: 'No registration found for this phone number'
+        });
+      }
+
       console.log(`📦 Found ${allData.length} records in userRegistrationWithThresholds schema`);
 
       const registrations = [];
@@ -52,25 +61,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         try {
           const dataItem = allData[i];
           console.log(`🔍 Checking data item ${i}: ${dataItem.slice(0, 100)}...`);
-          
-          if (dataItem && dataItem !== '0x' && dataItem.length > 200) {
+
+          if (typeof dataItem === 'string' && dataItem !== '0x' && dataItem.length > 200) {
             const abiCoder = new AbiCoder();
-            
+
             try {
               // Decode with integrated schema: phoneHash, address, string, uint64, uint256, uint256, string
               const decoded = abiCoder.decode(
                 ['bytes32', 'address', 'string', 'uint64', 'uint256', 'uint256', 'string'],
                 dataItem
               );
-              
+
               const [decodedPhoneHash, walletAddress, metainfo, timestamp, minLoss, maxProfit, tokenSymbol] = decoded;
-              
+
               console.log(`📱 Decoded phone hash: ${decodedPhoneHash}, looking for: ${phoneHash}`);
-              
+
               if (decodedPhoneHash === phoneHash) {
                 console.log(`✅ Found matching registration!`);
                 console.log(`📊 MinLoss: ${minLoss}, MaxProfit: ${maxProfit}, Token: ${tokenSymbol}`);
-                
+
                 registrations.push({
                   walletAddress: walletAddress,
                   registeredAt: new Date(Number(timestamp)).toISOString(),
@@ -83,7 +92,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   tokenSymbol: tokenSymbol || 'STT',
                   updatedAt: new Date(Number(timestamp)).toISOString()
                 });
-                
+
                 break; // Found our registration, no need to continue
               }
             } catch (decodeError) {
@@ -111,16 +120,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     } catch (sdkError) {
       console.error('Error querying with SDK:', (sdkError as Error).message);
-      
+
       // Fallback to event log scanning if SDK query fails
       return await queryViaEvents(req, res, phone, phoneHash);
     }
 
   } catch (error) {
     console.error('Query handler error:', (error as Error).message);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Internal server error',
-      details: (error as Error).message 
+      details: (error as Error).message
     });
   }
 }
@@ -143,7 +152,7 @@ async function queryViaEvents(req: NextApiRequest, res: NextApiResponse, phone: 
   try {
     // Query user registration events (simplified event scanning)
     const latestBlock = await client.getBlockNumber();
-    
+
     const logs = await client.getLogs({
       address: CONTRACT_ADDRESS,
       event: eventAbi,
@@ -189,9 +198,9 @@ async function queryViaEvents(req: NextApiRequest, res: NextApiResponse, phone: 
 
   } catch (error) {
     console.error('Fallback query error:', (error as Error).message);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Query failed',
-      details: (error as Error).message 
+      details: (error as Error).message
     });
   }
 }
