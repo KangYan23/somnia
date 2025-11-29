@@ -1,14 +1,14 @@
-# Somnia - Web3 Made Simple
+# IntelliBot - Web3 Made Simple
 
 > **Send crypto like a text message. No seed phrases. No hex addresses. Just phone numbers.**
 
-Somnia is a revolutionary Web3 platform that makes blockchain transactions as simple as sending a WhatsApp message. Built on the Somnia blockchain, it eliminates the complexity barriers that prevent mainstream adoption of cryptocurrency.
+IntelliBot is a revolutionary Web3 platform that makes blockchain transactions as simple as sending a WhatsApp message. Built on the Somnia blockchain, it eliminates the complexity barriers that prevent mainstream adoption of cryptocurrency.
 
 ---
 
 ## 📋 Overview
 
-Somnia transforms the Web3 experience by replacing complex cryptographic addresses with familiar phone numbers. Users can send, receive, and manage cryptocurrency through WhatsApp, making blockchain technology accessible to everyone—not just crypto experts.
+IntelliBot transforms the Web3 experience by replacing complex cryptographic addresses with familiar phone numbers. Users can send, receive, and manage cryptocurrency through WhatsApp, making blockchain technology accessible to everyone—not just crypto experts.
 
 **Key Innovation**: Instead of copying and pasting long hex addresses like `0x71C7656EC7ab88b098defB751B7401B5f6d8976F`, users simply send tokens to phone numbers like `+60177163313`.
 
@@ -44,7 +44,7 @@ Current Web3 lacks:
 
 ## 💡 Inspiration
 
-Somnia was inspired by the simplicity of traditional financial services:
+IntelliBot was inspired by the simplicity of traditional financial services:
 
 - **Venmo/PayPal**: Send money using phone numbers or usernames
 - **WhatsApp**: Universal messaging platform with 2+ billion users
@@ -56,7 +56,7 @@ Somnia was inspired by the simplicity of traditional financial services:
 
 ## ✨ The Solution
 
-Somnia solves all three core problems:
+IntelliBot solves all three core problems:
 
 ### 🔐 Simplified Onboarding
 - **Phone Number Registration**: Link your phone number to your wallet address once
