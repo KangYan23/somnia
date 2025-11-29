@@ -33,15 +33,15 @@ if (RPC_WS_URL) {
     RPC_WS_URL = RPC_WS_URL.replace('http://', 'ws://');
     console.log('🔧 Converted HTTP to WS for WebSocket connection');
   }
-  
+
   // Make sure corrected URL is in environment for SDK's internal client
   process.env.RPC_WS_URL = RPC_WS_URL;
-  
+
   try {
     somniaChainWithWs = buildSomniaChainWithWs(RPC_WS_URL);
-    wsPublicClient = createPublicClient({ 
-      chain: somniaChainWithWs, 
-      transport: webSocket(RPC_WS_URL as `wss://${string}` | `ws://${string}`) 
+    wsPublicClient = createPublicClient({
+      chain: somniaChainWithWs,
+      transport: webSocket(RPC_WS_URL as `wss://${string}` | `ws://${string}`)
     });
     console.log('✅ WebSocket client created for event subscriptions');
   } catch (error: any) {
@@ -59,8 +59,8 @@ if (RPC_WS_URL) {
 
 const sdk = new SDK({ public: wsPublicClient as any });
 
-const WHATSAPP_TOKEN = 'EAAL0CDf89vYBQOuv9J94Gc6frbTG8yrU4KUeZB0i171h6j0ypjQquIha3eitMcwTVZCXRgsZBI6326shtUYKD2WnGZAi573AxbZAEzZC9PwuVbtFrH67dJ0px8MauTQSXwhh7gPY1hSJqudW3Iv1MbsyoVxPnj0Qr5t2TOZAWo8enICpNYqIJZCr7EpRbOWVPhi4f2ZBwGWiyPMioF85H3TFxZBS0BDrRt3qN45OOOQbFRGojW59ZCC1HV60SQmIq8VGIuz7hy8hrGmQQA8tIKKvODIEkXG4wZDZD';
-const PHONE_NUMBER_ID = '879313071929309';
+const WHATSAPP_TOKEN = 'EAARGLB3xkxwBQM0ZAyEXvXVDXMYpmZCzeZCYKxD5ZC1ZCfSe7elD2CExS6aNxWllTVFjdWw7ZBvVlGvii6XXRWh3ulMAoY1rSDDpZBMKqxakJLRmZAzUQOBrOrZBZCvQuu4KTXq5KeKnpMhGR9GOy3eyHNk0zyfv3wrEXrUrMuJhFepIJwvQ49692NoXYdTlv4klZCg1Az1I5ZCrywWfv7CuwqEfnIHZAARl7cwKRYwZBRS0RhxDOZCBOMAdf2vZBNNJ1PBWafUOlap10CmxRSIor1WdwvjZC';
+const PHONE_NUMBER_ID = '856538677546496';
 
 // Blockchain explorer URL for transaction links (Somnia Testnet - Shannon)
 const EXPLORER_URL = process.env.BLOCKCHAIN_EXPLORER_URL || 'https://shannon-explorer.somnia.network';
@@ -83,18 +83,18 @@ async function sendWhatsAppMessage(to: string, message: string): Promise<boolean
 
   try {
     const url = `https://graph.facebook.com/v17.0/${PHONE_NUMBER_ID}/messages`;
-    
+
     // Phone number from data stream is WITHOUT country code (e.g., "01110851129")
     // Add country code ONLY ONCE here for WhatsApp
     // addCountryCodeForWhatsApp will handle it correctly (checks if already has CC)
     const phoneWithCountryCode = addCountryCodeForWhatsApp(to);
     console.log(`   Phone with country code for WhatsApp: ${to} → ${phoneWithCountryCode}`);
-    
+
     // WhatsApp API expects phone number with + prefix (international format)
     // Keep the + sign and remove only spaces, but keep all digits and +
     const phoneNumber = phoneWithCountryCode.replace(/[^0-9+]/g, '');
     console.log(`   Phone number for WhatsApp API: ${phoneNumber}`);
-    
+
     const payload = {
       messaging_product: 'whatsapp',
       to: phoneNumber,
@@ -119,7 +119,7 @@ async function sendWhatsAppMessage(to: string, message: string): Promise<boolean
  */
 async function subscribeToTransferIntent() {
   console.log('📡 Subscribing to TransferIntentCreated events...');
-  
+
   try {
     await sdk.streams.subscribe({
       somniaStreamsEventId: 'TransferIntentCreated',
@@ -130,12 +130,12 @@ async function subscribeToTransferIntent() {
           console.log('\n🔔 TransferIntentCreated event received!');
           const eventResult = payload?.result || payload;
           const topics = eventResult?.topics || [];
-          
+
           if (topics.length < 3) {
             console.warn('⚠️ Invalid topics array');
             return;
           }
-          
+
           const phoneHashes = extractPhoneHashesFromTopics(topics);
           if (!phoneHashes) return;
 
@@ -146,7 +146,7 @@ async function subscribeToTransferIntent() {
         }
       }
     } as any);
-    
+
     console.log('✅ TransferIntentCreated subscriber started');
   } catch (error: any) {
     console.error('❌ Failed to start TransferIntentCreated subscriber:', error.message);
@@ -158,7 +158,7 @@ async function subscribeToTransferIntent() {
  */
 async function subscribeToTransferConfirmed() {
   console.log('📡 Subscribing to TransferConfirmed events...');
-  
+
   try {
     await sdk.streams.subscribe({
       somniaStreamsEventId: 'TransferConfirmed',
@@ -169,43 +169,43 @@ async function subscribeToTransferConfirmed() {
           console.log('\n🔔 TransferConfirmed event received!');
           const eventResult = payload?.result || payload;
           const topics = eventResult?.topics || [];
-          
+
           if (topics.length < 3) {
             console.warn('⚠️ Invalid topics array');
             return;
           }
-          
+
           const phoneHashes = extractPhoneHashesFromTopics(topics);
           if (!phoneHashes) return;
 
           const { fromPhoneHash, toPhoneHash } = phoneHashes;
           const decoded = decodeTransferConfirmed(eventResult?.data);
-          
+
           const recipientPhone = decoded.toPhone.trim();
           const senderPhone = decoded.fromPhone?.trim() || '';
           const amountFormatted = formatAmount(decoded.amount, decoded.token);
           const txLink = getTxLink(decoded.txHash);
-          
+
           // Notify recipient
           if (recipientPhone) {
-            const recipientMessage = 
+            const recipientMessage =
               `💰 *Transfer Received!*\n\n` +
               `📥 Amount: *${amountFormatted}* ${decoded.token}\n` +
               `📱 From: ${senderPhone || 'Unknown'}\n` +
-              `🔗 View transaction: ${txLink}\n\n` ;
-            
+              `🔗 View transaction: ${txLink}\n\n`;
+
             await sendWhatsAppMessage(recipientPhone, recipientMessage);
             console.log(`✅ Recipient ${recipientPhone} notified`);
           }
-          
+
           // Notify sender (if sender phone is available)
           if (senderPhone && fromPhoneHash !== '0x' + '0'.repeat(64)) {
-            const senderMessage = 
+            const senderMessage =
               `✅ *Transfer Sent!*\n\n` +
               `📤 Amount: *${amountFormatted}* \n` +
               `📱 To: ${recipientPhone}\n` +
               `🔗 View transaction: ${txLink}\n\n`;
-            
+
             await sendWhatsAppMessage(senderPhone, senderMessage);
             console.log(`✅ Sender ${senderPhone} notified`);
           }
@@ -214,7 +214,7 @@ async function subscribeToTransferConfirmed() {
         }
       }
     } as any);
-    
+
     console.log('✅ TransferConfirmed subscriber started');
   } catch (error: any) {
     console.error('❌ Failed to start TransferConfirmed subscriber:', error.message);

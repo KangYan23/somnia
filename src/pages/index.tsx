@@ -1,9 +1,9 @@
-// src/pages/index.tsx
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import WavyBackground from '../components/WavyBackground';
 import HeroSection from '../components/HeroSection';
 import { ethers } from 'ethers';
+import { toast } from 'sonner';
 
 // Phone utility functions (client-side versions)
 function normalizePhone(raw: string) {
@@ -26,8 +26,19 @@ export default function Home() {
   const { address } = useAccount();
   const [phone, setPhone] = useState('');
   const [status, setStatus] = useState('');
-  const [queryPhone, setQueryPhone] = useState('');
-  const [queryResult, setQueryResult] = useState<any>(null);
+
+  // Onboarding Flow State
+  const [flowStep, setFlowStep] = useState<'INPUT' | 'CREATING_WALLET' | 'WALLET_CREATED' | 'LINKING_WALLET' | 'WALLET_LINKED'>('INPUT');
+  const [linkingProgress, setLinkingProgress] = useState(0);
+
+  // Custodial Wallet Demo State
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generatedWallet, setGeneratedWallet] = useState<string | null>(null);
+
+  // Funding State
+  const [fundAmount, setFundAmount] = useState('');
+  const [isFunding, setIsFunding] = useState(false);
+  const [fundingTxHash, setFundingTxHash] = useState<string | null>(null);
 
   // Query Datastream state
   const [datastreamQuery, setDatastreamQuery] = useState({
@@ -38,6 +49,8 @@ export default function Home() {
   const [datastreamResult, setDatastreamResult] = useState<any>(null);
 
   // Phone-based query state
+  const [queryPhone, setQueryPhone] = useState('');
+  const [queryResult, setQueryResult] = useState<any>(null);
   const [phoneQuery, setPhoneQuery] = useState('');
   const [phoneQueryResult, setPhoneQueryResult] = useState<any>(null);
   const [publisherAddress, setPublisherAddress] = useState<string>('');
@@ -66,17 +79,107 @@ export default function Home() {
     // The address from useAccount() hook will be automatically updated
   }
 
-  async function submit() {
-    if (!address) return alert("Connect wallet first");
-    // basic client side normalization: request E.164
-    const res = await fetch("/api/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone, walletAddress: address, metainfo: "" }),
-    });
-    const j = await res.json();
-    if (j.ok) setStatus("Registered! tx: " + j.tx);
-    else setStatus("Error: " + (j.error || "unknown"));
+  async function handleCreateWallet() {
+    if (!address) return toast.error("Connect wallet first");
+
+    setFlowStep('CREATING_WALLET');
+    setGenerationProgress(0);
+
+    // Simulate a 3-second process
+    const totalDuration = 3000;
+    const intervalTime = 100;
+    const steps = totalDuration / intervalTime;
+    let currentStep = 0;
+
+    const timer = setInterval(() => {
+      currentStep++;
+      const progress = Math.min(Math.round((currentStep / steps) * 100), 100);
+      setGenerationProgress(progress);
+
+      if (currentStep >= steps) {
+        clearInterval(timer);
+        setTimeout(() => {
+          setGeneratedWallet("0x1924a503da1ea2bcaa4fa62e28d54a2667c685d6");
+          setFlowStep('WALLET_CREATED');
+          toast.success("Custodial Wallet Created Successfully!");
+        }, 500);
+      }
+    }, intervalTime);
+  }
+
+  async function handleLinkWallet() {
+    setFlowStep('LINKING_WALLET');
+    setLinkingProgress(0);
+
+    // Simulate a 2-second process
+    const totalDuration = 2000;
+    const intervalTime = 100;
+    const steps = totalDuration / intervalTime;
+    let currentStep = 0;
+
+    const timer = setInterval(() => {
+      currentStep++;
+      const progress = Math.min(Math.round((currentStep / steps) * 100), 100);
+      setLinkingProgress(progress);
+
+      if (currentStep >= steps) {
+        clearInterval(timer);
+        setTimeout(() => {
+          setFlowStep('WALLET_LINKED');
+          toast.success("Wallet linked to phone number!");
+        }, 500);
+      }
+    }, intervalTime);
+  }
+
+  async function addFunds() {
+    if (!address) return toast.error("Connect wallet first");
+    if (!generatedWallet) return toast.error("No custodial wallet generated");
+    if (!fundAmount) return toast.error("Enter amount to fund");
+
+    setIsFunding(true);
+    try {
+      const provider = new ethers.BrowserProvider((window as any).ethereum as any);
+      const signer = await provider.getSigner();
+
+      const tx = await signer.sendTransaction({
+        to: generatedWallet,
+        value: ethers.parseEther(fundAmount)
+      });
+
+      setFundingTxHash(tx.hash);
+
+      toast.success(
+        <div className="flex flex-col gap-1">
+          <span className="font-bold">Successfully added funds!</span>
+          <a
+            href={`https://shannon-explorer.somnia.network/tx/${tx.hash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs underline hover:text-green-600"
+          >
+            View on Explorer
+          </a>
+        </div>,
+        { duration: 5000 }
+      );
+    } catch (error) {
+      console.error("Funding error:", error);
+      toast.error("Failed to send funds: " + (error instanceof Error ? error.message : "Unknown error"));
+    } finally {
+      setIsFunding(false);
+    }
+  }
+
+  function handleReset() {
+    setFlowStep('INPUT');
+    setGenerationProgress(0);
+    setLinkingProgress(0);
+    setGeneratedWallet(null);
+    setPhone('');
+    setStatus('');
+    setFundAmount('');
+    setFundingTxHash(null);
   }
 
   async function queryRegistration() {
@@ -371,10 +474,28 @@ export default function Home() {
       <div className="page-content" style={{ overflow: 'hidden', height: '100vh' }}>
         <div className="container">
           <HeroSection
-            onSubmit={submit}
             phone={phone}
             setPhone={setPhone}
             status={status}
+
+            // Flow Props
+            flowStep={flowStep}
+            onCreateWallet={handleCreateWallet}
+            onLinkWallet={handleLinkWallet}
+            linkingProgress={linkingProgress}
+
+            // Generation Props
+            generationProgress={generationProgress}
+            generatedWallet={generatedWallet}
+
+            // Funding Props
+            fundAmount={fundAmount}
+            setFundAmount={setFundAmount}
+            onAddFunds={addFunds}
+            isFunding={isFunding}
+            fundingTxHash={fundingTxHash}
+
+            onReset={handleReset}
           />
         </div>
       </div>
