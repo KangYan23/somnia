@@ -131,7 +131,7 @@ IntelliBot solves all three core problems:
 ## 🌐 High Level Architecture Diagram
 
 ```
-<img width="1060" height="587" alt="image" src="https://github.com/user-attachments/assets/3c7d322f-7c8f-4ec8-b211-49917f898c48" />
+<img width="1051" height="592" alt="image" src="https://github.com/user-attachments/assets/4e7b7880-8fd5-4828-985a-3f9c39373e55" />
 
 ```
 
